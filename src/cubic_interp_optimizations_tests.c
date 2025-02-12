@@ -40,13 +40,31 @@ int main()
   gettimeofday(&start_time, NULL);
   bicubic_interp *interp = bicubic_interp_init(data, grid_x, grid_y, -1, -1, 1, 1);
   gettimeofday(&end_time, NULL);
-
+  printf("bicubic_interp_init execution time: %f seconds\n", get_dt(start_time, end_time));
 
   // Evaluate before freeing
+  double accum_result = 0.0; // dummy variable so the compiler doesn't optimize away the bicubic_interp_eval loop
+  size_t num_iterations = 0;
+  gettimeofday(&start_time, NULL);
+  for(double s = 0; s <= 100; s += 0.1)
+  {
+    for(double t = 0; t <= 100; t += 0.1)
+    {
+      const double result = bicubic_interp_eval(interp, s, t);
+      accum_result += result;
+      num_iterations++;
+    }
+  }
+  gettimeofday(&end_time, NULL);
+
+  printf("total result (dummy var): %f\n", accum_result);
+  printf("num iterations: %lu\n", num_iterations);
+  printf("Total bicubic_interp_eval time: %f\tAverage time for bicubic_interp_eval: %f\n", get_dt(start_time, end_time), get_dt(start_time, end_time) / num_iterations);
+
+
+
 
   bicubic_interp_free(interp);
-
-  printf("bicubic_interp_init execution time: %f seconds\n", get_dt(start_time, end_time));
 
 
   free(data);

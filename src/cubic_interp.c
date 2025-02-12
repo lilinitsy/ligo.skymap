@@ -129,7 +129,7 @@ double cubic_interp_eval(const cubic_interp *interp, double t)
 
 
 bicubic_interp *bicubic_interp_init(
-    const double *data, int ns, int nt,
+    const double *__restrict__ data, int ns, int nt,
     double smin, double tmin, double ds, double dt)
 {
     const int slength = ns + 6;
@@ -193,8 +193,14 @@ double bicubic_interp_eval(const bicubic_interp *interp, double s, double t)
         return s + t;
 
     v2df x = {s, t}, xmin = {0.0, 0.0}, xmax = interp->xlength - 1.0;
+
+    // Passing -ffast-math automatically does this
+    #ifdef __FMA__  
+    x = _mm_fmadd_pd(x, interp->fx, interp->x0);
+    #else
     x *= interp->fx;
     x += interp->x0;
+    #endif
     x = VCLIP(x, xmin, xmax);
 
     v2df ix = VFLOOR(x);
