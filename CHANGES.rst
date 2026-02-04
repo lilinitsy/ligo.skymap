@@ -5,7 +5,7 @@ Changelog
 2.5.4 (unreleased)
 ==================
 
-- No changes yet.
+- Run tests for Python 3.14.
 
 2.5.3 (2026-01-07)
 ==================
