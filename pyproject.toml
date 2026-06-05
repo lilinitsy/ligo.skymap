@@ -43,7 +43,7 @@ dependencies = [
     "ligo-gracedb>=2.0.1",
     "matplotlib>=3.9.1",  # https://github.com/matplotlib/matplotlib/pull/28289
     "networkx",
-    "numpy>=2.0.0",
+    "numpy>=2.0.0,<2.5.1rc1",  # https://github.com/numpy/numpy/pull/30614
     "pillow>=2.5.0",
     "pytz",
     "reproject>=0.3.2",

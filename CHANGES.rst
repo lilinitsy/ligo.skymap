@@ -7,6 +7,8 @@ Changelog
 
 - Run tests for Python 3.14.
 
+- Limit Numpy to < 2.5.0rc1 due to API changes in that release.
+
 2.5.3 (2026-01-07)
 ==================
 
