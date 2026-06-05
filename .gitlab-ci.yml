@@ -300,6 +300,7 @@ test/dev-deps:
     - pip install $(echo ${CI_PROJECT_DIR}/*.whl)[test]
     - >
       pip install --upgrade --extra-index-url https://pypi.anaconda.org/scientific-python-nightly-wheels/simple
+      'numpy>=0.0.0.dev0'
       'matplotlib>=0.0.0.dev0'
       'lalsuite>=0.0.0.dev0'
       git+https://github.com/astropy/astropy
