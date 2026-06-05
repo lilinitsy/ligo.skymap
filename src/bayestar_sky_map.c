@@ -1275,7 +1275,7 @@ static void test_log_radial_integral(
             result, expected, tol,
             "testing toa_phoa_snr_log_radial_integral("
             "r1=%g, r2=%g, p2=%g, b=%g, k=%d)", r1, r2, p2, b, k);
-        free(integrator);
+        log_radial_integrator_free(integrator);
     }
 }
 
@@ -1418,7 +1418,7 @@ int bayestar_test(void)
                         "r1=%g, r2=%g, p=%g, b=%g, k=%d, x=%g, y=%g)", r1, r2, p, b, k, x, y);
                 }
             }
-            free(integrator);
+            log_radial_integrator_free(integrator);
         }
     }
 
