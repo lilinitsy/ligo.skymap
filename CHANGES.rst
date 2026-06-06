@@ -2,7 +2,7 @@
 Changelog
 #########
 
-2.5.4 (unreleased)
+2.5.4 (2026-06-06)
 ==================
 
 - Run tests for Python 3.14.
