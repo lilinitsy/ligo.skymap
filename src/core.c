@@ -1147,9 +1147,6 @@ static int m_exec(PyObject *module) {
     if (!state->sky_map_descr) return -1;
 
     MODULE_ADD_OBJECT(
-        "sky_map_descr", (PyObject *) sky_map_create_descr());
-
-    MODULE_ADD_OBJECT(
         "log_posterior_toa_phoa_snr", PyUFunc_FromFuncAndDataAndSignature(
             log_posterior_toa_phoa_snr_loops, NULL,
             log_posterior_toa_phoa_snr_types, 1, 18, 1, PyUFunc_None,
