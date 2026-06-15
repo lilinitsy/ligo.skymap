@@ -34,10 +34,4 @@
 #define WARNINGS_IGNORE_INCOMPATIBLE_POINTER_TYPES _Pragma("GCC diagnostic ignored \"-Wincompatible-pointer-types\"")
 #endif
 
-#ifdef __ICC
-#define WARNINGS_IGNORE_CAST_ALIGN
-#else  /* gcc or clang */
-#define WARNINGS_IGNORE_CAST_ALIGN _Pragma("GCC diagnostic ignored \"-Wcast-align\"")
-#endif
-
 #endif /* WARNINGS_H */

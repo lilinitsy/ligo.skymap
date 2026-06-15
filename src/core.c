@@ -20,6 +20,7 @@
 #endif
 #include <assert.h>
 #include <limits.h>
+#include <stdalign.h>
 #include <stddef.h>
 #include <string.h>
 #include <chealpix.h>
@@ -57,6 +58,9 @@
 #ifndef PYPY_VERSION
 struct _typeobject {};
 #endif
+
+
+#define ALIGNED_POINTER(tp, expr) ((tp *) __builtin_assume_aligned((expr), alignof(tp)))
 
 
 typedef struct {
@@ -138,14 +142,11 @@ static void conditional_pdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[4][i * steps[4]] = bayestar_distance_conditional_pdf(
-        *(double *) &args[0][i * steps[0]],
-        *(double *) &args[1][i * steps[1]],
-        *(double *) &args[2][i * steps[2]],
-        *(double *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[4][i * steps[4]]) = bayestar_distance_conditional_pdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double, &args[3][i * steps[3]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -166,14 +167,11 @@ static void conditional_cdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[4][i * steps[4]] = bayestar_distance_conditional_cdf(
-        *(double *) &args[0][i * steps[0]],
-        *(double *) &args[1][i * steps[1]],
-        *(double *) &args[2][i * steps[2]],
-        *(double *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[4][i * steps[4]]) = bayestar_distance_conditional_cdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double, &args[3][i * steps[3]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -194,14 +192,11 @@ static void conditional_ppf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[4][i * steps[4]] = bayestar_distance_conditional_ppf(
-        *(double *) &args[0][i * steps[0]],
-        *(double *) &args[1][i * steps[1]],
-        *(double *) &args[2][i * steps[2]],
-        *(double *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[4][i * steps[4]]) = bayestar_distance_conditional_ppf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double, &args[3][i * steps[3]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -222,15 +217,12 @@ static void moments_to_parameters_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         bayestar_distance_moments_to_parameters(
-            *(double *) &args[0][i * steps[0]],
-            *(double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+            *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+            *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+             ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+             ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+             ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -251,15 +243,12 @@ static void parameters_to_moments_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         bayestar_distance_parameters_to_moments(
-            *(double *) &args[0][i * steps[0]],
-            *(double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+            *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+            *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+             ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+             ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+             ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -296,23 +285,19 @@ static void volume_render_loop(
             OMP_EXIT_LOOP_EARLY
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[12][i * steps[12]] = bayestar_volume_render(
-            *(double *)   &args[0][i * steps[0]],
-            *(double *)   &args[1][i * steps[1]],
-            *(double *)   &args[2][i * steps[2]],
-            *(int *)      &args[3][i * steps[3]],
-            *(int *)      &args[4][i * steps[4]],
-             (double *)   &args[5][i * steps[5]],
-            *(npy_intp *) &args[6][i * steps[6]],
-            dimensions[2],
-             (npy_intp *) &args[7][i * steps[7]],
-             (double *)   &args[8][i * steps[8]],
-             (double *)   &args[9][i * steps[9]],
-             (double *)   &args[10][i * steps[10]],
-             (double *)   &args[11][i * steps[11]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double,  &args[12][i * steps[12]]) = bayestar_volume_render(
+        *ALIGNED_POINTER(double,   &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double,   &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double,   &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(int,      &args[3][i * steps[3]]),
+        *ALIGNED_POINTER(int,      &args[4][i * steps[4]]),
+         ALIGNED_POINTER(double,   &args[5][i * steps[5]]),
+        *ALIGNED_POINTER(npy_intp, &args[6][i * steps[6]]), dimensions[2],
+         ALIGNED_POINTER(npy_intp, &args[7][i * steps[7]]),
+         ALIGNED_POINTER(double,   &args[8][i * steps[8]]),
+         ALIGNED_POINTER(double,   &args[9][i * steps[9]]),
+         ALIGNED_POINTER(double,   &args[10][i * steps[10]]),
+         ALIGNED_POINTER(double,   &args[11][i * steps[11]]));
     }
     OMP_END_INTERRUPTIBLE
 
@@ -343,16 +328,12 @@ static void marginal_pdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[5][i * steps[5]] =
-            bayestar_distance_marginal_pdf(
-            *(double *) &args[0][i * steps[0]], npix,
-             (double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[5][i * steps[5]]) = bayestar_distance_marginal_pdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]), npix,
+         ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+         ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+         ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+         ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -382,16 +363,12 @@ static void marginal_cdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[5][i * steps[5]] =
-            bayestar_distance_marginal_cdf(
-            *(double *) &args[0][i * steps[0]], npix,
-             (double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[5][i * steps[5]]) = bayestar_distance_marginal_cdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]), npix,
+         ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+         ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+         ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+         ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -421,16 +398,12 @@ static void marginal_ppf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[5][i * steps[5]] =
-            bayestar_distance_marginal_ppf(
-            *(double *) &args[0][i * steps[0]], npix,
-             (double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[5][i * steps[5]]) = bayestar_distance_marginal_ppf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]), npix,
+         ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+         ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+         ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+         ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -593,12 +566,9 @@ static void nest2uniq_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(int64_t *) &args[2][i * steps[2]] = nest2uniq64(
-        *(int8_t *)  &args[0][i * steps[0]],
-        *(int64_t *) &args[1][i * steps[1]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(int64_t, &args[2][i * steps[2]]) = nest2uniq64(
+        *ALIGNED_POINTER(int8_t,  &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(int64_t, &args[1][i * steps[1]]));
     }
 }
 
@@ -612,12 +582,9 @@ static void uniq2nest_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(int8_t *)  &args[1][i * steps[1]] = uniq2nest64(
-        *(int64_t *) &args[0][i * steps[0]],
-         (int64_t *) &args[2][i * steps[2]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(int8_t,  &args[1][i * steps[1]]) = uniq2nest64(
+        *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]),
+         ALIGNED_POINTER(int64_t, &args[2][i * steps[2]]));
     }
 }
 
@@ -629,13 +596,8 @@ static void uniq2order_loop(
 
     for (npy_intp i = 0; i < n; i ++)
     {
-        /* Alignment of the ufunc arguments is enforced by the ufunc API. See
-         * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(int8_t *)  &args[1][i * steps[1]] = uniq2order64(
-        *(int64_t *) &args[0][i * steps[0]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(int8_t,  &args[1][i * steps[1]]) = uniq2order64(
+        *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]));
     }
 }
 
@@ -649,11 +611,8 @@ static void uniq2pixarea_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *)  &args[1][i * steps[1]] = uniq2pixarea64(
-        *(int64_t *) &args[0][i * steps[0]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double,  &args[1][i * steps[1]]) = uniq2pixarea64(
+        *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]));
     }
 }
 
@@ -665,15 +624,10 @@ static void uniq2ang_loop(
 
     for (npy_intp i = 0; i < n; i ++)
     {
-        /* Alignment of the ufunc arguments is enforced by the ufunc API. See
-         * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         uniq2ang64(
-            *(int64_t *) &args[0][i * steps[0]],
-             (double *)  &args[1][i * steps[1]],
-             (double *)  &args[2][i * steps[2]]);
-        WARNINGS_POP
+            *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]),
+             ALIGNED_POINTER(double,  &args[1][i * steps[1]]),
+             ALIGNED_POINTER(double,  &args[2][i * steps[2]]));
     }
 }
 
@@ -979,27 +933,22 @@ static void log_posterior_toa_phoa_snr_loop(
 
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *)   &args[18][i * steps[18]] = bayestar_log_posterior_toa_phoa_snr(
-        *(double *)   &args[0][i * steps[0]],
-        *(double *)   &args[1][i * steps[1]],
-        *(double *)   &args[2][i * steps[2]],
-        *(double *)   &args[3][i * steps[3]],
-        *(double *)   &args[4][i * steps[4]],
-        *(double *)   &args[5][i * steps[5]],
-        *(double *)   &args[6][i * steps[6]],
-        *(double *)   &args[7][i * steps[7]],
-        *(int *)      &args[8][i * steps[8]],
-        *(npy_bool *) &args[9][i * steps[9]],
-        *(double *)   &args[10][i * steps[10]],
-        nifos, nsamples,
-        *(double *) &args[11][i * steps[11]],
-         (const double *) &args[12][i * steps[12]],
-         snrs, responses, locations,
-         (const double *) &args[16][i * steps[16]],
-        *(const float *) &args[17][i * steps[17]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double,       &args[18][i * steps[18]]) = bayestar_log_posterior_toa_phoa_snr(
+        *ALIGNED_POINTER(double,       &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double,       &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double,       &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double,       &args[3][i * steps[3]]),
+        *ALIGNED_POINTER(double,       &args[4][i * steps[4]]),
+        *ALIGNED_POINTER(double,       &args[5][i * steps[5]]),
+        *ALIGNED_POINTER(double,       &args[6][i * steps[6]]),
+        *ALIGNED_POINTER(double,       &args[7][i * steps[7]]),
+        *ALIGNED_POINTER(int,          &args[8][i * steps[8]]),
+        *ALIGNED_POINTER(npy_bool,     &args[9][i * steps[9]]),
+        *ALIGNED_POINTER(double,       &args[10][i * steps[10]]), nifos, nsamples,
+        *ALIGNED_POINTER(double,       &args[11][i * steps[11]]),
+         ALIGNED_POINTER(const double, &args[12][i * steps[12]]), snrs, responses, locations,
+         ALIGNED_POINTER(const double, &args[16][i * steps[16]]),
+        *ALIGNED_POINTER(const float,  &args[17][i * steps[17]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -1020,19 +969,15 @@ static void antenna_factor_loop(
 
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         for (int j = 0; j < 3; j ++)
             for (int k = 0; k < 3; k ++)
-                response[j][k] = *(float *) &args[0][
-                    i * steps[0] + j * steps[5] + k * steps[6]];
+                response[j][k] = *ALIGNED_POINTER(float, &args[0][
+                    i * steps[0] + j * steps[5] + k * steps[6]]);
 
-        *(float complex *) &args[4][i * steps[4]] = antenna_factor(
-                response,
-                *(float *) &args[1][i * steps[1]],
-                *(float *) &args[2][i * steps[2]],
-                *(float *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(float complex, &args[4][i * steps[4]]) = antenna_factor(response,
+        *ALIGNED_POINTER(float,         &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(float,         &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(float,         &args[3][i * steps[3]]));
     }
 }
 
@@ -1046,15 +991,11 @@ static void signal_amplitude_model_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(float complex *) &args[4][i * steps[4]] =
-            bayestar_signal_amplitude_model(
-            *(float complex *) &args[0][i * steps[0]],
-            *(float complex *) &args[1][i * steps[1]],
-            *(float *)         &args[2][i * steps[2]],
-            *(float *)         &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(float complex, &args[4][i * steps[4]]) = bayestar_signal_amplitude_model(
+        *ALIGNED_POINTER(float complex, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(float complex, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(float,         &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(float,         &args[3][i * steps[3]]));
     }
 }
 
