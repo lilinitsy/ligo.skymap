@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019  Leo Singer
+ * Copyright (C) 2019-2026  Leo Singer
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,12 +32,6 @@
 #define WARNINGS_IGNORE_INCOMPATIBLE_POINTER_TYPES _Pragma("warning(disable:167)")
 #else  /* gcc or clang */
 #define WARNINGS_IGNORE_INCOMPATIBLE_POINTER_TYPES _Pragma("GCC diagnostic ignored \"-Wincompatible-pointer-types\"")
-#endif
-
-#ifdef __ICC
-#define WARNINGS_IGNORE_CAST_ALIGN
-#else  /* gcc or clang */
-#define WARNINGS_IGNORE_CAST_ALIGN _Pragma("GCC diagnostic ignored \"-Wcast-align\"")
 #endif
 
 #endif /* WARNINGS_H */

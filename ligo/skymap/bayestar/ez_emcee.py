@@ -1,4 +1,4 @@
-# Copyright (C) 2018-2020  Leo Singer
+# Copyright (C) 2018-2025  Leo Singer
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,18 +16,27 @@
 import numpy as np
 from tqdm import tqdm
 
-from .ptemcee import Sampler
+from ..extern.ptemcee import Sampler
 
-__all__ = ('ez_emcee',)
+__all__ = ("ez_emcee",)
 
 
 def logp(x, lo, hi):
     return np.where(((x >= lo) & (x <= hi)).all(-1), 0.0, -np.inf)
 
 
-def ez_emcee(log_prob_fn, lo, hi, nindep=200,
-             ntemps=10, nwalkers=None, nburnin=500,
-             args=(), kwargs={}, **options):
+def ez_emcee(
+    log_prob_fn,
+    lo,
+    hi,
+    nindep=200,
+    ntemps=10,
+    nwalkers=None,
+    nburnin=500,
+    args=(),
+    kwargs={},
+    **options,
+):
     r'''Fire-and-forget MCMC sampling using `ptemcee.Sampler`, featuring
     automated convergence monitoring, progress tracking, and thinning.
 
@@ -72,9 +81,10 @@ def ez_emcee(log_prob_fn, lo, hi, nindep=200,
     Other parameters
     ----------------
     kwargs :
-        Extra keyword arguments for `ptemcee.Sampler`.
-        *Tip:* Consider setting the `pool` or `vectorized` keyword arguments in
-        order to speed up likelihood evaluations.
+        Extra keyword arguments for
+        :class:`ligo.skymap.extern.ptemcee.Sampler`. *Tip:* Consider setting
+        the ``pool`` or ``vectorize`` keyword arguments in order to speed up
+        likelihood evaluations.
 
     Notes
     -----
@@ -114,31 +124,44 @@ def ez_emcee(log_prob_fn, lo, hi, nindep=200,
     nsteps = 64
 
     with tqdm(total=nburnin + nindep * nsteps) as progress:
-
-        sampler = Sampler(nwalkers, ndim, log_prob_fn, logp,
-                          ntemps=ntemps, loglargs=args, loglkwargs=kwargs,
-                          logpargs=[lo, hi], random=np.random, **options)
-        pos = np.random.uniform(lo, hi, (ntemps, nwalkers, ndim))
+        sampler = Sampler(
+            nwalkers,
+            ndim,
+            log_prob_fn,
+            logp,
+            ntemps=ntemps,
+            loglargs=args,
+            loglkwargs=kwargs,
+            logpargs=[lo, hi],
+            random=np.random,
+            **options,
+        )
+        # Sample from uniform prior until all samples have nonzero likelihood.
+        pos = np.empty((ntemps * nwalkers, ndim))
+        bad = np.ones(ntemps * nwalkers, dtype=bool)
+        nbad = bad.size
+        while nbad > 0:
+            pos[bad] = np.random.uniform(lo, hi, (nbad, ndim))
+            bad[bad] = np.isneginf(sampler._evaluate(pos[bad])[0])
+            nbad = bad.sum()
+        pos = pos.reshape((ntemps, nwalkers, ndim))
 
         # Burn in
-        progress.set_description('Burning in')
-        for pos, _, _ in sampler.sample(
-                pos, iterations=nburnin, storechain=False):
+        progress.set_description("Burning in")
+        for pos, _, _ in sampler.sample(pos, iterations=nburnin, storechain=False):
             progress.update()
 
         sampler.reset()
         acl = np.nan
         while not np.isfinite(acl) or sampler.time < nindep * acl:
-
             # Advance the chain
-            progress.total = nburnin + max(sampler.time + nsteps,
-                                           nindep * acl)
-            progress.set_description('Sampling')
+            progress.total = nburnin + max(sampler.time + nsteps, nindep * acl)
+            progress.set_description("Sampling")
             for pos, _, _ in sampler.sample(pos, iterations=nsteps):
                 progress.update()
 
             # Refresh convergence statistics
-            progress.set_description('Checking')
+            progress.set_description("Checking")
             acl = sampler.get_autocorr_time()[0].max()
             if np.isfinite(acl):
                 acl = max(1, int(np.ceil(acl)))

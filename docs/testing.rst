@@ -38,6 +38,12 @@ Unit tests in ligo.skymap come in three forms:
    :c:func:`bayestar_test` in `src/bayestar_sky_map.c`_ and
    :c:func:`cubic_interp_test` in `src/cubic_interp_test.c`_.
 
+Static code analysis
+--------------------
+
+Static code analysis and linting is performed by `ruff`_ which is run as
+a :ref:`pre-commit hook <pre-commit-hook>`.
+
 Coverage analysis
 -----------------
 
@@ -49,7 +55,8 @@ Acceptance tests
 
 There is a suite of weekly `acceptance tests`_ for BAYESTAR that check that
 the code reproduces localizations for past gravitational-wave events including
-GW170814 and GW170817 as well as populations of simulated events.
+GW170814 and GW170817 as well as populations of simulated events. See
+the `acceptance tests report`_ for the most recent build.
 
 Review
 ------
@@ -118,10 +125,12 @@ corresponding ticket in the LSC
 .. _`gsl_test.h`: https://git.savannah.gnu.org/cgit/gsl.git/tree/test/gsl_test.h
 .. _`src/bayestar_sky_map.c`: https://git.ligo.org/lscsoft/ligo.skymap/-/blob/main/src/bayestar_sky_map.c
 .. _`src/cubic_interp_test.c`: https://git.ligo.org/lscsoft/ligo.skymap/-/blob/main/src/cubic_interp_test.c
-.. _`coverage report`: https://lscsoft.docs.ligo.org/ligo.skymap/coverage.html
+.. _`coverage report`: https://lscsoft.docs.ligo.org/ligo.skymap/coverage/
 .. _`acceptance tests`: https://git.ligo.org/leo-singer/ligo-skymap-acceptance-tests-public
+.. _`acceptance tests report`: https://lscsoft.docs.ligo.org/ligo.skymap/review/
 .. _`LIGO Scientific Collaboration (LSC)`: https://www.ligo.org
 .. _`scientific review (private wiki link)`: https://git.ligo.org/cbc-review/review/-/wikis/CBC-review-guidelines
 .. _`private wiki`: https://git.ligo.org/lscsoft/ligo.skymap/-/wikis/home
 .. _`Review label`: https://git.ligo.org/lscsoft/ligo.skymap/-/merge_requests?label_name%5B%5D=Review
 .. _`Software Change Control Board (SCCB) issue tracker (private link)`: https://git.ligo.org/computing/sccb/-/issues
+.. _`ruff`: https://docs.astral.sh/ruff/

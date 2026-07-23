@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2020-2024  Leo Singer
+# Copyright (C) 2020-2025  Leo Singer
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,23 +15,23 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 #
 """Tools for adapting LIGO-LW row ID formats."""
+
 import re
 
-from ligo.lw.ligolw import Param
-from ligo.lw.lsctables import TableByName
-from ligo.lw.table import Column, TableStream
-from ligo.lw.types import FormatFunc, FromPyType
+from igwn_ligolw.ligolw import Column, Param, Table
+from igwn_ligolw.lsctables import TableByName
+from igwn_ligolw.types import FormatFunc, FromPyType
 
-__all__ = ('use_in',)
+__all__ = ("use_in",)
 
-IDTypes = {'ilwd:char', 'ilwd:char_u'}
+IDTypes = {"ilwd:char", "ilwd:char_u"}
 
 ROWID_PYTYPE = int
 ROWID_TYPE = FromPyType[ROWID_PYTYPE]
 ROWID_FORMATFUNC = FormatFunc[ROWID_TYPE]
 
 
-_ilwd_regex = re.compile(r'\s*\w+:\w+:(\d+)\s*')
+_ilwd_regex = re.compile(r"\s*\w+:\w+:(\d+)\s*")
 
 
 def ilwd_to_int(ilwd):
@@ -44,23 +44,20 @@ def ilwd_to_int(ilwd):
 def use_in(ContentHandler):
     """Convert from old-style to new-style row IDs on the fly.
 
-    This is loosely adapted from :func:`ligo.lw.utils.ilwd.strip_ilwdchar`.
+    This is loosely adapted from :func:`igwn_ligolw.utils.ilwd.strip_ilwdchar`.
 
     Notes
     -----
     When building a ContentHandler, this must be the _outermost_ decorator,
-    outside of :func:`ligo.lw.lsctables.use_in`, :func:`ligo.lw.param.use_in`,
-    or :func:`ligo.lw.table.use_in`.
+    outside of :func:`igwn_ligolw.lsctables.use_in`,
+    :func:`igwn_ligolw.param.use_in`, or :func:`igwn_ligolw.table.use_in`.
 
     Examples
     --------
     >>> from importlib.resources import as_file, files
-    >>> from ligo.lw import array, ligolw, lsctables, param, table, utils
+    >>> from igwn_ligolw import ligolw, lsctables, utils
     >>> from ligo.skymap.util import ilwd
     >>> @ilwd.use_in
-    ... @lsctables.use_in
-    ... @param.use_in
-    ... @table.use_in
     ... class ContentHandler(ligolw.LIGOLWContentHandler):
     ...     pass
     >>> with as_file(files('ligo.skymap.io.tests.data').joinpath(
@@ -72,8 +69,9 @@ def use_in(ContentHandler):
 
     """
 
-    def endElementNS(self, uri_localname, qname,
-                     __orig_endElementNS=ContentHandler.endElementNS):
+    def endElementNS(
+        self, uri_localname, qname, __orig_endElementNS=ContentHandler.endElementNS
+    ):
         """Convert values of <Param> elements from ilwdchar to int."""
         if isinstance(self.current, Param) and self.current.Type in IDTypes:
             new_value = ilwd_to_int(self.current.pcdata)
@@ -83,14 +81,13 @@ def use_in(ContentHandler):
 
     remapped = {}
 
-    def startColumn(self, parent, attrs,
-                    __orig_startColumn=ContentHandler.startColumn):
+    def startColumn(self, parent, attrs, __orig_startColumn=ContentHandler.startColumn):
         """Convert types in <Column> elements from ilwdchar to int.
 
         Notes
         -----
         This method is adapted from
-        :func:`ligo.lw.utils.ilwd.strip_ilwdchar`.
+        :func:`igwn_ligolw.utils.ilwd.strip_ilwdchar`.
 
         """
         result = __orig_startColumn(self, parent, attrs)
@@ -106,35 +103,41 @@ def use_in(ContentHandler):
             validcolumns = TableByName[parent.Name].validcolumns
             if result.Name not in validcolumns:
                 stripped_column_to_valid_column = {
-                    Column.ColumnName(name): name for name in validcolumns}
+                    Column.ColumnName(name): name for name in validcolumns
+                }
                 if result.Name in stripped_column_to_valid_column:
                     result.setAttribute(
-                        'Name', stripped_column_to_valid_column[result.Name])
+                        "Name", stripped_column_to_valid_column[result.Name]
+                    )
 
         return result
 
-    def startStream(self, parent, attrs,
-                    __orig_startStream=ContentHandler.startStream):
+    def startStream(self, parent, attrs, __orig_startStream=ContentHandler.startStream):
         """Convert values in table <Stream> elements from ilwdchar to int.
 
         Notes
         -----
         This method is adapted from
-        :meth:`ligo.lw.table.TableStream.config`.
+        :meth:`igwn_ligolw.ligolw.Table.Stream.config`.
 
         """
         result = __orig_startStream(self, parent, attrs)
-        if isinstance(result, TableStream):
+        if isinstance(result, Table.Stream):
             loadcolumns = set(parent.columnnames)
             if parent.loadcolumns is not None:
                 # FIXME:  convert loadcolumns attributes to sets to
                 # avoid the conversion.
                 loadcolumns &= set(parent.loadcolumns)
-            result._tokenizer.set_types([
-                (remapped.pop((id(parent), colname), pytype)
-                 if colname in loadcolumns else None)
-                for pytype, colname
-                in zip(parent.columnpytypes, parent.columnnames)])
+            result._tokenizer.set_types(
+                [
+                    (
+                        remapped.pop((id(parent), colname), pytype)
+                        if colname in loadcolumns
+                        else None
+                    )
+                    for pytype, colname in zip(parent.columnpytypes, parent.columnnames)
+                ]
+            )
         return result
 
     ContentHandler.endElementNS = endElementNS

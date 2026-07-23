@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2014-2024  Leo Singer
+# Copyright (C) 2014-2025  Leo Singer
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -18,12 +18,12 @@
 detectors by evaluating a model power noise sensitivity curve.
 """
 
-from argparse import SUPPRESS
 import inspect
+from argparse import SUPPRESS, FileType
 
-from . import ArgumentParser, FileType, register_to_xmldoc, write_fileobj
+from . import ArgumentParser, register_to_xmldoc, write_fileobj
 
-psd_name_prefix = 'SimNoisePSD'
+psd_name_prefix = "SimNoisePSD"
 
 
 def parser():
@@ -32,46 +32,70 @@ def parser():
 
     # Get names of PSD functions.
     psd_names = sorted(
-        name[len(psd_name_prefix):]
+        name[len(psd_name_prefix) :]
         for name, func in inspect.getmembers(lalsimulation)
-        if name.startswith(psd_name_prefix) and callable(func) and (
-            '(double f) -> double' in func.__doc__ or
-            '(REAL8FrequencySeries psd, double flow) -> int' in func.__doc__))
+        if name.startswith(psd_name_prefix)
+        and callable(func)
+        and (
+            "(double f) -> double" in func.__doc__
+            or "(REAL8FrequencySeries psd, double flow) -> int" in func.__doc__
+        )
+    )
 
     parser = ArgumentParser()
     parser.add_argument(
-        '-o', '--output', metavar='OUT.xml[.gz]', type=FileType('wb'),
-        default='-', help='Name of output file [default: stdout]')
+        "-o",
+        "--output",
+        metavar="OUT.xml[.gz]",
+        type=FileType("wb"),
+        default="-",
+        help="Name of output file [default: stdout]",
+    )
     parser.add_argument(
-        '--df', metavar='Hz', type=float, default=1.0,
-        help='Frequency step size [default: %(default)s]')
+        "--df",
+        metavar="Hz",
+        type=float,
+        default=1.0,
+        help="Frequency step size [default: %(default)s]",
+    )
     parser.add_argument(
-        '--f-max', metavar='Hz', type=float, default=2048.0,
-        help='Maximum frequency [default: %(default)s]')
+        "--f-max",
+        metavar="Hz",
+        type=float,
+        default=2048.0,
+        help="Maximum frequency [default: %(default)s]",
+    )
 
     detector_group = parser.add_argument_group(
-        'detector noise curves',
-        'Options to select noise curves for detectors.\n\n'
-        'All detectors support the following options:\n\n' +
-        '\n'.join(psd_names))
+        "detector noise curves",
+        "Options to select noise curves for detectors.\n\n"
+        "All detectors support the following options:\n\n" + "\n".join(psd_names),
+    )
 
     scale_group = parser.add_argument_group(
-        'detector scaling',
-        'Options to apply scale factors to noise curves for detectors.\n'
-        'For example, a scale factor of 2 means that the amplitude spectral\n'
-        'density is multiplied by 1/2 so that the range is multiplied by a 2.')
+        "detector scaling",
+        "Options to apply scale factors to noise curves for detectors.\n"
+        "For example, a scale factor of 2 means that the amplitude spectral\n"
+        "density is multiplied by 1/2 so that the range is multiplied by a 2.",
+    )
 
     # Add options for individual detectors
     for detector in lal.CachedDetectors:
         name = detector.frDetector.name
         prefix = detector.frDetector.prefix
         detector_group.add_argument(
-            '--' + prefix, choices=psd_names,
-            metavar='func', default=SUPPRESS,
-            help='PSD function for {0} detector'.format(name))
+            "--" + prefix,
+            choices=psd_names,
+            metavar="func",
+            default=SUPPRESS,
+            help="PSD function for {0} detector".format(name),
+        )
         scale_group.add_argument(
-            '--' + prefix + '-scale', type=float, default=SUPPRESS,
-            help='Scale range for {0} detector'.format(name))
+            "--" + prefix + "-scale",
+            type=float,
+            default=SUPPRESS,
+            help="Scale range for {0} detector".format(name),
+        )
 
     return parser
 
@@ -82,6 +106,7 @@ def main(args=None):
         import lal.series
         import lalsimulation
         import numpy as np
+
         from ..bayestar.filter import vectorize_swig_psd_func
 
         # Add basic options.
@@ -97,13 +122,15 @@ def main(args=None):
             psd_name = getattr(opts, detector, None)
             if psd_name is None:
                 continue
-            scale = 1 / np.square(getattr(opts, detector + '_scale', 1.0))
+            scale = 1 / np.square(getattr(opts, detector + "_scale", 1.0))
             func = getattr(lalsimulation, psd_name_prefix + psd_name)
             series = lal.CreateREAL8FrequencySeries(
-                psd_name, 0, 0, opts.df, lal.SecondUnit, n)
-            if '(double f) -> double' in func.__doc__:
-                series.data.data = vectorize_swig_psd_func(
-                    psd_name_prefix + psd_name)(f)
+                psd_name, 0, 0, opts.df, lal.SecondUnit, n
+            )
+            if "(double f) -> double" in func.__doc__:
+                series.data.data = vectorize_swig_psd_func(psd_name_prefix + psd_name)(
+                    f
+                )
             else:
                 func(series, 0.0)
 
@@ -115,13 +142,14 @@ def main(args=None):
 
                 # Truncate
                 series = lal.CutREAL8FrequencySeries(
-                    series, first_nonzero, last_nonzero - first_nonzero + 1)
+                    series, first_nonzero, last_nonzero - first_nonzero + 1
+                )
                 series.f0 = first_nonzero * series.deltaF
 
                 series.name = psd_name
             series.data.data *= scale
             psds[detector] = series
 
-        xmldoc = lal.series.make_psd_xmldoc(psds)
+        xmldoc = lal.series.make_psd_xmldoc(psds, encoding="base64")
         register_to_xmldoc(xmldoc, p, opts)
         write_fileobj(xmldoc, opts.output)

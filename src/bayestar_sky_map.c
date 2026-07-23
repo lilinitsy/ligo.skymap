@@ -47,7 +47,7 @@
 
 
 /*
- * Copyright (C) 2013-2024  Leo Singer
+ * Copyright (C) 2013-2026  Leo Singer
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -377,6 +377,22 @@ static double log_radial_integral(double r1, double r2, double p, double b, int 
 static const size_t default_log_radial_integrator_size = 400;
 
 
+static void log_radial_integrator_free(log_radial_integrator *integrator)
+{
+    if (LIKELY(integrator))
+    {
+        bicubic_interp_free(integrator->region0);
+        integrator->region0 = NULL;
+        cubic_interp_free(integrator->region1);
+        integrator->region1 = NULL;
+        cubic_interp_free(integrator->region2);
+        integrator->region2 = NULL;
+    }
+    free(integrator);
+}
+
+
+__attribute__ ((malloc, malloc(log_radial_integrator_free)))
 static log_radial_integrator *log_radial_integrator_init(double r1, double r2, int k, int cosmology, double pmax, size_t size)
 {
     log_radial_integrator *integrator;
@@ -465,21 +481,6 @@ done:
     integrator->vmax = vmax;
     integrator->p0_limit = p0_limit;
     return integrator;
-}
-
-
-static void log_radial_integrator_free(log_radial_integrator *integrator)
-{
-    if (LIKELY(integrator))
-    {
-        bicubic_interp_free(integrator->region0);
-        integrator->region0 = NULL;
-        cubic_interp_free(integrator->region1);
-        integrator->region1 = NULL;
-        cubic_interp_free(integrator->region2);
-        integrator->region2 = NULL;
-    }
-    free(integrator);
 }
 
 
@@ -1274,7 +1275,7 @@ static void test_log_radial_integral(
             result, expected, tol,
             "testing toa_phoa_snr_log_radial_integral("
             "r1=%g, r2=%g, p2=%g, b=%g, k=%d)", r1, r2, p2, b, k);
-        free(integrator);
+        log_radial_integrator_free(integrator);
     }
 }
 
@@ -1372,7 +1373,7 @@ int bayestar_test(void)
     test_log_radial_integral(0, 0, 0, 1, 0, 0, 0);
     test_log_radial_integral(0, 0, exp(1), exp(2), 0, 0, -1);
     test_log_radial_integral(log(63), 0, 3, 6, 0, 0, 2);
-    /* Te integrand with p2>0, b=0 (from Mathematica). */
+    /* Tests of integrand with p2>0, b=0 (from Mathematica). */
     test_log_radial_integral(-0.480238, 1e-3, 1, 2, 1, 0, 0);
     test_log_radial_integral(0.432919, 1e-3, 1, 2, 1, 0, 2);
     test_log_radial_integral(-2.76076, 1e-3, 0, 1, 1, 0, 2);
@@ -1417,7 +1418,7 @@ int bayestar_test(void)
                         "r1=%g, r2=%g, p=%g, b=%g, k=%d, x=%g, y=%g)", r1, r2, p, b, k, x, y);
                 }
             }
-            free(integrator);
+            log_radial_integrator_free(integrator);
         }
     }
 

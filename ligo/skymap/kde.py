@@ -17,25 +17,30 @@
 #
 
 import copyreg
+import logging
 from functools import partial
 
-from astropy.coordinates import SkyCoord
-from astropy import units as u
-from astropy.utils.misc import NumpyRNGContext
 import healpy as hp
-import logging
 import numpy as np
+from astropy import units as u
+from astropy.coordinates import SkyCoord
+from astropy.utils.misc import NumpyRNGContext
+from scipy import linalg
+from scipy.cluster.vq import vq
 from scipy.stats import gaussian_kde
 
-from . import distance
-from . import moc
+from . import distance, moc
 from .coordinates import EigenFrame
-from .util import progress_map
+from .util import progress_map, progress_map_vectorized
 
 log = logging.getLogger()
 
-__all__ = ('BoundedKDE', 'Clustered2DSkyKDE', 'Clustered3DSkyKDE',
-           'Clustered2Plus1DSkyKDE')
+__all__ = (
+    "BoundedKDE",
+    "Clustered2DSkyKDE",
+    "Clustered3DSkyKDE",
+    "Clustered2Plus1DSkyKDE",
+)
 
 
 class BoundedKDE(gaussian_kde):
@@ -63,16 +68,11 @@ class BoundedKDE(gaussian_kde):
 
     """
 
-    def __init__(self, pts, low=-np.inf, high=np.inf, periodic=False,
-                 bw_method=None):
-
+    def __init__(self, pts, low=-np.inf, high=np.inf, periodic=False, bw_method=None):
         super().__init__(pts, bw_method=bw_method)
-        self._low = np.broadcast_to(
-            low, self.d).astype(self.dataset.dtype)
-        self._high = np.broadcast_to(
-            high, self.d).astype(self.dataset.dtype)
-        self._periodic = np.broadcast_to(
-            periodic, self.d).astype(bool)
+        self._low = np.broadcast_to(low, self.d).astype(self.dataset.dtype)
+        self._high = np.broadcast_to(high, self.d).astype(self.dataset.dtype)
+        self._periodic = np.broadcast_to(periodic, self.d).astype(bool)
 
     def evaluate(self, pts):
         """Evaluate the KDE at the given points."""
@@ -86,8 +86,9 @@ class BoundedKDE(gaussian_kde):
 
         den = super().evaluate(pts)
 
-        for i, (low, high, period) in enumerate(zip(self._low, self._high,
-                                                    self._periodic)):
+        for i, (low, high, period) in enumerate(
+            zip(self._low, self._high, self._periodic)
+        ):
             if period:
                 p = high - low
 
@@ -131,27 +132,43 @@ class BoundedKDE(gaussian_kde):
         return np.count_nonzero(self(self.dataset) < self(pt)) / self.n
 
 
-def km_assign(mus, cov, pts):
+def whiten(pts):
+    """Whiten a set of points, making its covariance the identity matrix.
+
+    Parameters
+    ----------
+    pts
+        An array of shape ``(npts, ndim)``
+
+    Returns
+    -------
+    whitened_pts
+        A new array of shape ``(npts, ndim)``
+
+    Example
+    -------
+
+    >>> x = np.random.uniform(size=(100, 3))
+    >>> x_whitened = whiten(x)
+    >>> np.cov(x_whitened, rowvar=0)  # doctest: +FLOAT_CMP
+    array([[1., 0., 0.],
+           [0., 1., 0.],
+           [0., 0., 1.]])
+    """
+    cov = np.cov(pts, rowvar=0)
+    cho_cov = linalg.cholesky(cov, lower=True)
+    return linalg.solve_triangular(cho_cov, pts.T, lower=True).T
+
+
+def km_assign(mus, pts):
     """Implement the assignment step in the k-means algorithm.
 
-    Given a set of centers, ``mus``, a covariance matrix used to produce a
-    metric on the space, ``cov``, and a set of points, ``pts`` (shape ``(npts,
-    ndim)``), assigns each point to its nearest center, returning an array of
-    indices of shape ``(npts,)`` giving the assignments.
+    Given a set of centers, ``mus`` and a set of points, ``pts`` (shape
+    ``(npts, ndim)``), assigns each point to its nearest center, returning an
+    array of indices of shape ``(npts,)`` giving the assignments.
     """
-    k = mus.shape[0]
-    n = pts.shape[0]
-
-    dists = np.empty((k, n))
-
-    for i, mu in enumerate(mus):
-        dx = pts - mu
-        try:
-            dists[i, :] = np.sum(dx * np.linalg.solve(cov, dx.T).T, axis=1)
-        except np.linalg.LinAlgError:
-            dists[i, :] = np.nan
-
-    return np.nanargmin(dists, axis=0)
+    assign, _ = vq(pts, mus, check_finite=False)
+    return assign
 
 
 def km_centroids(pts, assign, k):
@@ -179,8 +196,8 @@ def k_means(pts, k):
     Parameters
     ----------
     pts
-        Array of shape ``(npts, ndim)`` giving the points on which k-means is
-        to operate.
+        Array of shape ``(npts, ndim)`` giving the whitened points on which
+        k-means is to operate.
     k
         Positive integer giving the number of regions.
 
@@ -193,47 +210,43 @@ def k_means(pts, k):
         (exclusive) indicating the assignment of each point to a region.
 
     """
-    assert pts.shape[0] > k, 'must have more points than means'
+    n = len(pts)
+    assert n > k, "must have more points than means"
 
-    cov = np.cov(pts, rowvar=0)
-
-    mus = np.random.permutation(pts)[:k, :]
-    assign = km_assign(mus, cov, pts)
+    mus = pts[np.random.choice(n, k, replace=False)]
+    assign = km_assign(mus, pts)
     while True:
         old_assign = assign
 
         mus = km_centroids(pts, assign, k)
-        assign = km_assign(mus, cov, pts)
+        assign = km_assign(mus, pts)
 
         if np.all(assign == old_assign):
-            break
-
-    return mus, assign
+            return mus, assign
 
 
-def _cluster(cls, pts, trials, i, seed, jobs):
+def _cluster(cls, pts, whitened_pts, trials, i, seed, jobs):
     k = i // trials
     if k == 0:
-        raise ValueError('Expected at least one cluster')
+        raise ValueError("Expected at least one cluster")
     try:
         if k == 1:
             assign = np.zeros(len(pts), dtype=np.intp)
         else:
             with NumpyRNGContext(i + seed):
-                _, assign = k_means(pts, k)
+                _, assign = k_means(whitened_pts, k)
         obj = cls(pts, assign=assign)
     except np.linalg.LinAlgError:
-        return -np.inf,
+        return (-np.inf,)
     else:
         return obj.bic, k, obj.kdes
 
 
 class ClusteredKDE:
-
     def __init__(self, pts, max_k=40, trials=5, assign=None, jobs=1):
         self.jobs = jobs
         if assign is None:
-            log.info('clustering ...')
+            log.info("clustering ...")
             # Make sure that each thread gets a different random number state.
             # We start by drawing a random integer s in the main thread, and
             # then the i'th subprocess will seed itself with the integer i + s.
@@ -241,18 +254,20 @@ class ClusteredKDE:
             # The seed must be an unsigned 32-bit integer, so if there are n
             # threads, then s must be drawn from the interval [0, 2**32 - n).
             seed = np.random.randint(0, 2**32 - max_k * trials)
-            func = partial(_cluster, type(self), pts, trials, seed=seed,
-                           jobs=jobs)
+            func = partial(
+                _cluster, type(self), pts, whiten(pts), trials, seed=seed, jobs=jobs
+            )
             self.bic, self.k, self.kdes = max(
                 self._map(func, range(trials, (max_k + 1) * trials)),
-                key=lambda items: items[:2])
+                key=lambda items: items[:2],
+            )
         else:
             # Build KDEs for each cluster, skipping degenerate clusters
             self.kdes = []
             npts, ndim = pts.shape
             self.k = assign.max() + 1
             for i in range(self.k):
-                sel = (assign == i)
+                sel = assign == i
                 cluster_pts = pts[sel, :]
                 # Equivalent to but faster than len(set(pts))
                 nuniq = len(np.unique(cluster_pts, axis=0))
@@ -278,16 +293,18 @@ class ClusteredKDE:
             #
             # * one weighting factor for the cluster (minus one for the
             #   overall constraint that the weights must sum to one)
-            nparams = (self.k * ndim +
-                       0.5 * self.k * (ndim + 1) * ndim + self.k - 1)
-            with np.errstate(divide='ignore'):
-                self.bic = (
-                    np.sum(np.log(self.eval_kdes(pts))) -
-                    0.5 * nparams * np.log(npts))
+            nparams = self.k * ndim + 0.5 * self.k * (ndim + 1) * ndim + self.k - 1
+            with np.errstate(divide="ignore"):
+                self.bic = np.sum(np.log(self.eval_kdes(pts))) - 0.5 * nparams * np.log(
+                    npts
+                )
 
     def eval_kdes(self, pts):
         pts = pts.T
-        return sum(w * kde(pts) for w, kde in zip(self.weights, self.kdes))
+        result = sum(w * kde(pts) for w, kde in zip(self.weights, self.kdes))
+        if pts.ndim == 1:
+            result = result.item()
+        return result
 
     def __call__(self, pts):
         return self.eval_kdes(pts)
@@ -300,12 +317,14 @@ class ClusteredKDE:
         w = np.asarray([kde.n for kde in self.kdes])
         return w / np.sum(w)
 
-    def _map(self, func, items):
+    def _map(self, func, items, *args, **kwargs):
         return progress_map(func, items, jobs=self.jobs)
+
+    def _map_vectorized(self, func, items, *args, **kwargs):
+        return progress_map_vectorized(func, items, jobs=self.jobs, *args, **kwargs)
 
 
 class SkyKDE(ClusteredKDE):
-
     @classmethod
     def transform(cls, pts):
         """Override in sub-classes to transform points."""
@@ -314,15 +333,13 @@ class SkyKDE(ClusteredKDE):
     def __init__(self, pts, max_k=40, trials=5, assign=None, jobs=1):
         if assign is None:
             pts = self.transform(pts)
-        super().__init__(
-            pts, max_k=max_k, trials=trials, assign=assign, jobs=jobs)
+        super().__init__(pts, max_k=max_k, trials=trials, assign=assign, jobs=jobs)
 
     def __call__(self, pts):
         return super().__call__(self.transform(pts))
 
-    def as_healpix(self, top_nside=16, rounds=8):
-        return moc.bayestar_adaptive_grid(self, top_nside=top_nside,
-                                          rounds=rounds)
+    def as_healpix(self, *args, **kwargs):
+        return moc.bayestar_adaptive_grid(self, *args, **kwargs)
 
 
 # We have to put in some hooks to make instances of Clustered2DSkyKDE picklable
@@ -339,7 +356,7 @@ class _Clustered2DSkyKDEMeta(type):  # noqa: N802
 
 def _Clustered2DSkyKDEMeta_pickle(cls):  # noqa: N802
     """Pickle dynamically created subclasses of Clustered2DSkyKDE."""
-    return type, (cls.__name__, cls.__bases__, {'frame': cls.frame})
+    return type, (cls.__name__, cls.__bases__, {"frame": cls.frame})
 
 
 # Register function to pickle subclasses of Clustered2DSkyKDE.
@@ -353,7 +370,7 @@ def _Clustered2DSkyKDE_factory(name, frame):  # noqa: N802
     FIXME: In Python 3, we could make this a class method of Clustered2DSkyKDE.
     Unfortunately, Python 2 is picky about pickling bound class methods.
     """
-    new_cls = type(name, (Clustered2DSkyKDE,), {'frame': frame})
+    new_cls = type(name, (Clustered2DSkyKDE,), {"frame": frame})
     return super(Clustered2DSkyKDE, Clustered2DSkyKDE).__new__(new_cls)
 
 
@@ -389,12 +406,12 @@ class Clustered2DSkyKDE(SkyKDE, metaclass=_Clustered2DSkyKDEMeta):
     @classmethod
     def transform(cls, pts):
         pts = SkyCoord(*pts.T, unit=u.rad).transform_to(cls.frame).spherical
-        return np.column_stack((pts.lon.rad, np.sin(pts.lat.rad)))
+        return np.stack((pts.lon.rad, np.sin(pts.lat.rad))).T
 
     def __new__(cls, pts, *args, **kwargs):
         frame = EigenFrame.for_coords(SkyCoord(*pts.T, unit=u.rad))
-        name = '{:s}_{:x}'.format(cls.__name__, id(frame))
-        new_cls = type(name, (cls,), {'frame': frame})
+        name = "{:s}_{:x}".format(cls.__name__, id(frame))
+        new_cls = type(name, (cls,), {"frame": frame})
         return super().__new__(new_cls)
 
     def __reduce__(self):
@@ -404,11 +421,14 @@ class Clustered2DSkyKDE(SkyKDE, metaclass=_Clustered2DSkyKDEMeta):
         factory_args = self.__class__.__name__, self.frame
         return _Clustered2DSkyKDE_factory, factory_args, self.__dict__
 
+    def __call__(self, pts):
+        return self._map_vectorized(self.eval_kdes, self.transform(pts))
+
     def eval_kdes(self, pts):
         base = super().eval_kdes
         dphis = (0.0, 2 * np.pi, -2 * np.pi)
         phi, z = pts.T
-        return sum(base(np.column_stack((phi + dphi, z))) for dphi in dphis)
+        return sum(base(np.stack((phi + dphi, z)).T) for dphi in dphis)
 
 
 class Clustered3DSkyKDE(SkyKDE):
@@ -424,12 +444,14 @@ class Clustered3DSkyKDE(SkyKDE):
 
     def __call__(self, pts, distances=False):
         """Given an array of positions in RA, Dec, compute the marginal sky
-        posterior and optinally the conditional distance parameters.
+        posterior and optionally the conditional distance parameters.
         """
-        func = partial(distance.cartesian_kde_to_moments,
-                       datasets=[_.dataset for _ in self.kdes],
-                       inverse_covariances=[_.inv_cov for _ in self.kdes],
-                       weights=self.weights)
+        func = partial(
+            distance.cartesian_kde_to_moments,
+            datasets=[_.dataset for _ in self.kdes],
+            inverse_covariances=[_.inv_cov for _ in self.kdes],
+            weights=self.weights,
+        )
         probdensity, mean, std = zip(*self._map(func, self.transform(pts)))
         if distances:
             mu, sigma, norm = distance.moments_to_parameters(mean, std)
@@ -437,23 +459,27 @@ class Clustered3DSkyKDE(SkyKDE):
         else:
             return probdensity
 
+    def eval_distances(self, pts):
+        _, *result = self(pts, distances=True)
+        return result
+
     def posterior_spherical(self, pts):
         """Evaluate the posterior probability density in spherical polar
         coordinates, as a function of (ra, dec, distance).
         """
         return super().__call__(pts)
 
-    def as_healpix(self, top_nside=16):
+    def as_healpix(self, *args, **kwargs):
         """Return a HEALPix multi-order map of the posterior density and
         conditional distance distribution parameters.
         """
-        m = super().as_healpix(top_nside=top_nside)
-        order, ipix = moc.uniq2nest(m['UNIQ'])
+        m = super().as_healpix(*args, **kwargs)
+        order, ipix = moc.uniq2nest(m["UNIQ"])
         nside = 2 ** order.astype(int)
         theta, phi = hp.pix2ang(nside, ipix, nest=True)
         p = np.column_stack((phi, 0.5 * np.pi - theta))
-        log.info('evaluating distance layers ...')
-        _, m['DISTMU'], m['DISTSIGMA'], m['DISTNORM'] = self(p, distances=True)
+        log.info("evaluating distance layers ...")
+        m["DISTMU"], m["DISTSIGMA"], m["DISTNORM"] = self.eval_distances(p)
         return m
 
 
@@ -466,22 +492,19 @@ class Clustered2Plus1DSkyKDE(Clustered3DSkyKDE):
     def __init__(self, pts, max_k=40, trials=5, assign=None, jobs=1):
         if assign is None:
             self.twod = Clustered2DSkyKDE(
-                pts, max_k=max_k, trials=trials, assign=assign, jobs=jobs)
-        super().__init__(
-            pts, max_k=max_k, trials=trials, assign=assign, jobs=jobs)
+                pts, max_k=max_k, trials=trials, assign=assign, jobs=jobs
+            )
+        super().__init__(pts, max_k=max_k, trials=trials, assign=assign, jobs=jobs)
 
-    def __call__(self, pts, distances=False):
-        probdensity = self.twod(pts)
-        if distances:
-            _, distmu, distsigma, distnorm = super().__call__(
-                pts, distances=True)
-            return probdensity, distmu, distsigma, distnorm
-        else:
-            return probdensity
+    def __call__(self, pts):
+        return self.twod(pts)
+
+    def eval_distances(self, pts):
+        _, *result = super().__call__(pts, distances=True)
+        return result
 
     def posterior_spherical(self, pts):
         """Evaluate the posterior probability density in spherical polar
         coordinates, as a function of (ra, dec, distance).
         """
-        return self(pts) * super().posterior_spherical(pts) / super().__call__(
-            pts)
+        return self(pts) * super().posterior_spherical(pts) / super().__call__(pts)

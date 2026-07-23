@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013-2024  Leo Singer
+ * Copyright (C) 2013-2026  Leo Singer
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,7 +20,9 @@
 #endif
 #include <assert.h>
 #include <limits.h>
+#include <stdalign.h>
 #include <stddef.h>
+#include <string.h>
 #include <chealpix.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_nan.h>
@@ -56,6 +58,14 @@
 #ifndef PYPY_VERSION
 struct _typeobject {};
 #endif
+
+
+#define ALIGNED_POINTER(tp, expr) ((tp *) __builtin_assume_aligned((expr), alignof(tp)))
+
+
+typedef struct {
+    PyObject *sky_map_descr;
+} m_state;
 
 
 static PyObject *itt_pause(PyObject *NPY_UNUSED(module), void *NPY_UNUSED(args))
@@ -132,14 +142,11 @@ static void conditional_pdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[4][i * steps[4]] = bayestar_distance_conditional_pdf(
-        *(double *) &args[0][i * steps[0]],
-        *(double *) &args[1][i * steps[1]],
-        *(double *) &args[2][i * steps[2]],
-        *(double *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[4][i * steps[4]]) = bayestar_distance_conditional_pdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double, &args[3][i * steps[3]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -160,14 +167,11 @@ static void conditional_cdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[4][i * steps[4]] = bayestar_distance_conditional_cdf(
-        *(double *) &args[0][i * steps[0]],
-        *(double *) &args[1][i * steps[1]],
-        *(double *) &args[2][i * steps[2]],
-        *(double *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[4][i * steps[4]]) = bayestar_distance_conditional_cdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double, &args[3][i * steps[3]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -188,14 +192,11 @@ static void conditional_ppf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[4][i * steps[4]] = bayestar_distance_conditional_ppf(
-        *(double *) &args[0][i * steps[0]],
-        *(double *) &args[1][i * steps[1]],
-        *(double *) &args[2][i * steps[2]],
-        *(double *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[4][i * steps[4]]) = bayestar_distance_conditional_ppf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double, &args[3][i * steps[3]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -216,15 +217,12 @@ static void moments_to_parameters_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         bayestar_distance_moments_to_parameters(
-            *(double *) &args[0][i * steps[0]],
-            *(double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+            *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+            *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+             ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+             ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+             ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -245,15 +243,12 @@ static void parameters_to_moments_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         bayestar_distance_parameters_to_moments(
-            *(double *) &args[0][i * steps[0]],
-            *(double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+            *ALIGNED_POINTER(double, &args[0][i * steps[0]]),
+            *ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+             ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+             ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+             ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -290,23 +285,19 @@ static void volume_render_loop(
             OMP_EXIT_LOOP_EARLY
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[12][i * steps[12]] = bayestar_volume_render(
-            *(double *)   &args[0][i * steps[0]],
-            *(double *)   &args[1][i * steps[1]],
-            *(double *)   &args[2][i * steps[2]],
-            *(int *)      &args[3][i * steps[3]],
-            *(int *)      &args[4][i * steps[4]],
-             (double *)   &args[5][i * steps[5]],
-            *(npy_intp *) &args[6][i * steps[6]],
-            dimensions[2],
-             (npy_intp *) &args[7][i * steps[7]],
-             (double *)   &args[8][i * steps[8]],
-             (double *)   &args[9][i * steps[9]],
-             (double *)   &args[10][i * steps[10]],
-             (double *)   &args[11][i * steps[11]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double,  &args[12][i * steps[12]]) = bayestar_volume_render(
+        *ALIGNED_POINTER(double,   &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double,   &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double,   &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(int,      &args[3][i * steps[3]]),
+        *ALIGNED_POINTER(int,      &args[4][i * steps[4]]),
+         ALIGNED_POINTER(double,   &args[5][i * steps[5]]),
+        *ALIGNED_POINTER(npy_intp, &args[6][i * steps[6]]), dimensions[2],
+         ALIGNED_POINTER(npy_intp, &args[7][i * steps[7]]),
+         ALIGNED_POINTER(double,   &args[8][i * steps[8]]),
+         ALIGNED_POINTER(double,   &args[9][i * steps[9]]),
+         ALIGNED_POINTER(double,   &args[10][i * steps[10]]),
+         ALIGNED_POINTER(double,   &args[11][i * steps[11]]));
     }
     OMP_END_INTERRUPTIBLE
 
@@ -337,16 +328,12 @@ static void marginal_pdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[5][i * steps[5]] =
-            bayestar_distance_marginal_pdf(
-            *(double *) &args[0][i * steps[0]], npix,
-             (double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[5][i * steps[5]]) = bayestar_distance_marginal_pdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]), npix,
+         ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+         ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+         ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+         ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -376,16 +363,12 @@ static void marginal_cdf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[5][i * steps[5]] =
-            bayestar_distance_marginal_cdf(
-            *(double *) &args[0][i * steps[0]], npix,
-             (double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[5][i * steps[5]]) = bayestar_distance_marginal_cdf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]), npix,
+         ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+         ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+         ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+         ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -415,16 +398,12 @@ static void marginal_ppf_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *) &args[5][i * steps[5]] =
-            bayestar_distance_marginal_ppf(
-            *(double *) &args[0][i * steps[0]], npix,
-             (double *) &args[1][i * steps[1]],
-             (double *) &args[2][i * steps[2]],
-             (double *) &args[3][i * steps[3]],
-             (double *) &args[4][i * steps[4]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double, &args[5][i * steps[5]]) = bayestar_distance_marginal_ppf(
+        *ALIGNED_POINTER(double, &args[0][i * steps[0]]), npix,
+         ALIGNED_POINTER(double, &args[1][i * steps[1]]),
+         ALIGNED_POINTER(double, &args[2][i * steps[2]]),
+         ALIGNED_POINTER(double, &args[3][i * steps[3]]),
+         ALIGNED_POINTER(double, &args[4][i * steps[4]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -450,7 +429,8 @@ static PyObject *rasterize(
     static const char *keywords[] = {"array", "order", NULL};
 
     /* Parse arguments */
-    /* FIXME: PyArg_ParseTupleAndKeywords should expect keywords to be const */
+    /* FIXME: PyArg_ParseTupleAndKeywords should expect keywords to be const.
+     * Remove warning control after we require Python >= 3.13. */
     WARNINGS_PUSH
     WARNINGS_IGNORE_INCOMPATIBLE_POINTER_TYPES
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|i",
@@ -487,7 +467,7 @@ static PyObject *rasterize(
     if (!PyArg_ParseTuple(uniq_field, "Oi", &uniq_dtype, &uniq_offset))
         return NULL;
 
-    if (!PyArray_DescrCheck(uniq_dtype))
+    if (!PyArray_DescrCheck((PyObject *) uniq_dtype))
     {
         PyErr_SetString(PyExc_ValueError, "not a dtype");
         goto done;
@@ -569,7 +549,7 @@ static PyObject *rasterize(
     }
 
 done:
-    Py_XDECREF(arr);
+    Py_XDECREF((PyObject *) arr);
     Py_XDECREF(uniq_key);
     Py_XDECREF(new_fields);
     Py_XDECREF(capsule);
@@ -586,12 +566,9 @@ static void nest2uniq_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(int64_t *) &args[2][i * steps[2]] = nest2uniq64(
-        *(int8_t *)  &args[0][i * steps[0]],
-        *(int64_t *) &args[1][i * steps[1]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(int64_t, &args[2][i * steps[2]]) = nest2uniq64(
+        *ALIGNED_POINTER(int8_t,  &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(int64_t, &args[1][i * steps[1]]));
     }
 }
 
@@ -605,12 +582,9 @@ static void uniq2nest_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(int8_t *)  &args[1][i * steps[1]] = uniq2nest64(
-        *(int64_t *) &args[0][i * steps[0]],
-         (int64_t *) &args[2][i * steps[2]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(int8_t,  &args[1][i * steps[1]]) = uniq2nest64(
+        *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]),
+         ALIGNED_POINTER(int64_t, &args[2][i * steps[2]]));
     }
 }
 
@@ -622,13 +596,8 @@ static void uniq2order_loop(
 
     for (npy_intp i = 0; i < n; i ++)
     {
-        /* Alignment of the ufunc arguments is enforced by the ufunc API. See
-         * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(int8_t *)  &args[1][i * steps[1]] = uniq2order64(
-        *(int64_t *) &args[0][i * steps[0]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(int8_t,  &args[1][i * steps[1]]) = uniq2order64(
+        *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]));
     }
 }
 
@@ -642,11 +611,8 @@ static void uniq2pixarea_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *)  &args[1][i * steps[1]] = uniq2pixarea64(
-        *(int64_t *) &args[0][i * steps[0]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double,  &args[1][i * steps[1]]) = uniq2pixarea64(
+        *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]));
     }
 }
 
@@ -658,15 +624,10 @@ static void uniq2ang_loop(
 
     for (npy_intp i = 0; i < n; i ++)
     {
-        /* Alignment of the ufunc arguments is enforced by the ufunc API. See
-         * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         uniq2ang64(
-            *(int64_t *) &args[0][i * steps[0]],
-             (double *)  &args[1][i * steps[1]],
-             (double *)  &args[2][i * steps[2]]);
-        WARNINGS_POP
+            *ALIGNED_POINTER(int64_t, &args[0][i * steps[0]]),
+             ALIGNED_POINTER(double,  &args[1][i * steps[1]]),
+             ALIGNED_POINTER(double,  &args[2][i * steps[2]]));
     }
 }
 
@@ -701,7 +662,7 @@ static void uniq2ang_loop(
 #define FREE_INPUT_LIST_OF_ARRAYS(NAME) \
 { \
     for (unsigned int iifo = 0; iifo < nifos; iifo ++) \
-        Py_XDECREF(NAME##_npy[iifo]); \
+        Py_XDECREF((PyObject *) NAME##_npy[iifo]); \
 }
 
 #define INPUT_VECTOR_NIFOS(CTYPE, NAME, NPYTYPE) \
@@ -768,7 +729,8 @@ static PyObject *sky_map_toa_phoa_snr(
         NULL};
 
     /* Parse arguments */
-    /* FIXME: PyArg_ParseTupleAndKeywords should expect keywords to be const */
+    /* FIXME: PyArg_ParseTupleAndKeywords should expect keywords to be const.
+     * Remove warning control after we require Python >= 3.13. */
     WARNINGS_PUSH
     WARNINGS_IGNORE_INCOMPATIBLE_POINTER_TYPES
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ddiidfOOOOOf",
@@ -888,9 +850,11 @@ static PyObject *sky_map_toa_phoa_snr(
     if (!capsule)
         goto fail;
 
-    PyArray_Descr *sky_map_descr = (PyArray_Descr *) PyObject_GetAttrString(module, "sky_map_descr");
-    if (!sky_map_descr)
+    m_state *state = PyModule_GetState(module);
+    if (!state || !state->sky_map_descr)
         goto fail;
+    Py_INCREF(state->sky_map_descr);
+    PyArray_Descr *sky_map_descr = (PyArray_Descr *) state->sky_map_descr;
 
     npy_intp dims[] = {len};
     out = PyArray_NewFromDescr(&PyArray_Type,
@@ -909,11 +873,11 @@ static PyObject *sky_map_toa_phoa_snr(
     }
 
 fail: /* Cleanup */
-    Py_XDECREF(epochs_npy);
+    Py_XDECREF((PyObject *) epochs_npy);
     FREE_INPUT_LIST_OF_ARRAYS(snrs)
     FREE_INPUT_LIST_OF_ARRAYS(responses)
     FREE_INPUT_LIST_OF_ARRAYS(locations)
-    Py_XDECREF(horizons_npy);
+    Py_XDECREF((PyObject *) horizons_npy);
     if (out) {
         out = Py_BuildValue("Ndd", out, log_bci, log_bsn);
     }
@@ -924,9 +888,16 @@ fail: /* Cleanup */
 static void log_posterior_toa_phoa_snr_loop(
     char **args, const npy_intp *dimensions, const npy_intp *steps, void *NPY_UNUSED(data))
 {
-    const npy_intp n = dimensions[0],
-               nifos = dimensions[1],
-            nsamples = dimensions[2];
+    /* FIXME: initializing these symbols as const results in an internal
+     * compiler error on GCC on macOS. As a temporary workaround, remove the
+     * const.
+     *
+     * See https://git.ligo.org/lscsoft/ligo.skymap/-/issues/59.
+     */
+
+    /* const */ npy_intp n = dimensions[0],
+                     nifos = dimensions[1],
+                  nsamples = dimensions[2];
 
     /* Check core dimensions. */
     assert(dimensions[3] == 2);
@@ -962,27 +933,22 @@ static void log_posterior_toa_phoa_snr_loop(
 
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(double *)   &args[18][i * steps[18]] = bayestar_log_posterior_toa_phoa_snr(
-        *(double *)   &args[0][i * steps[0]],
-        *(double *)   &args[1][i * steps[1]],
-        *(double *)   &args[2][i * steps[2]],
-        *(double *)   &args[3][i * steps[3]],
-        *(double *)   &args[4][i * steps[4]],
-        *(double *)   &args[5][i * steps[5]],
-        *(double *)   &args[6][i * steps[6]],
-        *(double *)   &args[7][i * steps[7]],
-        *(int *)      &args[8][i * steps[8]],
-        *(npy_bool *) &args[9][i * steps[9]],
-        *(double *)   &args[10][i * steps[10]],
-        nifos, nsamples,
-        *(double *) &args[11][i * steps[11]],
-         (const double *) &args[12][i * steps[12]],
-         snrs, responses, locations,
-         (const double *) &args[16][i * steps[16]],
-        *(const float *) &args[17][i * steps[17]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(double,       &args[18][i * steps[18]]) = bayestar_log_posterior_toa_phoa_snr(
+        *ALIGNED_POINTER(double,       &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(double,       &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(double,       &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(double,       &args[3][i * steps[3]]),
+        *ALIGNED_POINTER(double,       &args[4][i * steps[4]]),
+        *ALIGNED_POINTER(double,       &args[5][i * steps[5]]),
+        *ALIGNED_POINTER(double,       &args[6][i * steps[6]]),
+        *ALIGNED_POINTER(double,       &args[7][i * steps[7]]),
+        *ALIGNED_POINTER(int,          &args[8][i * steps[8]]),
+        *ALIGNED_POINTER(npy_bool,     &args[9][i * steps[9]]),
+        *ALIGNED_POINTER(double,       &args[10][i * steps[10]]), nifos, nsamples,
+        *ALIGNED_POINTER(double,       &args[11][i * steps[11]]),
+         ALIGNED_POINTER(const double, &args[12][i * steps[12]]), snrs, responses, locations,
+         ALIGNED_POINTER(const double, &args[16][i * steps[16]]),
+        *ALIGNED_POINTER(const float,  &args[17][i * steps[17]]));
     }
 
     gsl_set_error_handler(old_handler);
@@ -1003,19 +969,15 @@ static void antenna_factor_loop(
 
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
         for (int j = 0; j < 3; j ++)
             for (int k = 0; k < 3; k ++)
-                response[j][k] = *(float *) &args[0][
-                    i * steps[0] + j * steps[5] + k * steps[6]];
+                response[j][k] = *ALIGNED_POINTER(float, &args[0][
+                    i * steps[0] + j * steps[5] + k * steps[6]]);
 
-        *(float complex *) &args[4][i * steps[4]] = antenna_factor(
-                response,
-                *(float *) &args[1][i * steps[1]],
-                *(float *) &args[2][i * steps[2]],
-                *(float *) &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(float complex, &args[4][i * steps[4]]) = antenna_factor(response,
+        *ALIGNED_POINTER(float,         &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(float,         &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(float,         &args[3][i * steps[3]]));
     }
 }
 
@@ -1029,15 +991,11 @@ static void signal_amplitude_model_loop(
     {
         /* Alignment of the ufunc arguments is enforced by the ufunc API. See
          * https://numpy.org/doc/stable/user/basics.ufuncs.html#use-of-internal-buffers. */
-        WARNINGS_PUSH
-        WARNINGS_IGNORE_CAST_ALIGN
-        *(float complex *) &args[4][i * steps[4]] =
-            bayestar_signal_amplitude_model(
-            *(float complex *) &args[0][i * steps[0]],
-            *(float complex *) &args[1][i * steps[1]],
-            *(float *)         &args[2][i * steps[2]],
-            *(float *)         &args[3][i * steps[3]]);
-        WARNINGS_POP
+        *ALIGNED_POINTER(float complex, &args[4][i * steps[4]]) = bayestar_signal_amplitude_model(
+        *ALIGNED_POINTER(float complex, &args[0][i * steps[0]]),
+        *ALIGNED_POINTER(float complex, &args[1][i * steps[1]]),
+        *ALIGNED_POINTER(float,         &args[2][i * steps[2]]),
+        *ALIGNED_POINTER(float,         &args[3][i * steps[3]]));
     }
 }
 
@@ -1102,60 +1060,32 @@ static const char double_ufunc_types[] = {
                       NPY_CFLOAT, NPY_CFLOAT, NPY_FLOAT,
                       NPY_FLOAT, NPY_CFLOAT};
 
-static PyModuleDef moduledef = {
-    .m_base = PyModuleDef_HEAD_INIT,
-    .m_name = "core",
-    .m_methods = (PyMethodDef []) {
-        {"itt_pause", (PyCFunction)itt_pause,
-            METH_NOARGS, "fill me in"},
-        {"itt_resume", (PyCFunction)itt_resume,
-            METH_NOARGS, "fill me in"},
-        {"get_num_threads", (PyCFunction)get_num_threads,
-            METH_NOARGS, "fill me in"},
-        {"set_num_threads", (PyCFunction)set_num_threads,
-            METH_O, "fill me in"},
-        {"rasterize", (PyCFunction)rasterize,
-            METH_VARARGS | METH_KEYWORDS, "fill me in"},
-        {"toa_phoa_snr", (PyCFunction)sky_map_toa_phoa_snr,
-            METH_VARARGS | METH_KEYWORDS, "fill me in"},
-        {"test", (PyCFunction)test,
-            METH_NOARGS, "fill me in"},
-        {/* terminal element, all NULL */}
-    }
-};
+static int m_traverse(PyObject *self, visitproc visit, void *arg) {
+    m_state *state = PyModule_GetState(self);
+    if (!state) return -1;
+    Py_VISIT(state->sky_map_descr);
+    return 0;
+}
 
+static int m_clear(PyObject *self) {
+    m_state *state = PyModule_GetState(self);
+    if (!state) return -1;
+    Py_CLEAR(state->sky_map_descr);
+    return 0;
+}
 
 #define MODULE_ADD_OBJECT(name, objinit) do { \
-    PyObject *obj = (objinit); \
-    if (!obj) \
-    { \
-        Py_DECREF(module); \
-        return NULL; \
-    } \
-    if (PyModule_AddObject(module, (name), obj) < 0) \
-    { \
-        Py_DECREF(obj); \
-        Py_DECREF(module); \
-        return NULL; \
-    } \
+    if (PyModule_AddObjectRef(module, (name), (objinit))) \
+        return -1; \
 } while(0)
 
-
-PyMODINIT_FUNC PyInit_core(void); /* Silence -Wmissing-prototypes */
-PyMODINIT_FUNC PyInit_core(void)
-{
-    PyObject *module;
-
+static int m_exec(PyObject *module) {
     gsl_set_error_handler_off();
-    import_array();
-    import_umath();
 
-    module = PyModule_Create(&moduledef);
-    if (!module)
-        return NULL;
-
-    MODULE_ADD_OBJECT(
-        "sky_map_descr", (PyObject *) sky_map_create_descr());
+    m_state *state = PyModule_GetState(module);
+    if (!state) return -1;
+    state->sky_map_descr = (PyObject *) sky_map_create_descr();
+    if (!state->sky_map_descr) return -1;
 
     MODULE_ADD_OBJECT(
         "log_posterior_toa_phoa_snr", PyUFunc_FromFuncAndDataAndSignature(
@@ -1265,5 +1195,42 @@ PyMODINIT_FUNC PyInit_core(void)
             signal_amplitude_model_ufunc_types, 1, 4, 1, PyUFunc_None,
             "signal_amplitude_model", NULL, 0));
 
-    return module;
+    return 0;
+}
+
+static PyModuleDef moduledef = {
+    .m_base = PyModuleDef_HEAD_INIT,
+    .m_name = "core",
+    .m_size = sizeof(m_state),
+    .m_traverse = m_traverse,
+    .m_clear = m_clear,
+    .m_slots = (PyModuleDef_Slot []) {
+        {Py_mod_exec, m_exec},
+        {/* terminal element, all NULL */}
+    },
+    .m_methods = (PyMethodDef []) {
+        {"itt_pause", (PyCFunction)itt_pause,
+            METH_NOARGS, "fill me in"},
+        {"itt_resume", (PyCFunction)itt_resume,
+            METH_NOARGS, "fill me in"},
+        {"get_num_threads", (PyCFunction)get_num_threads,
+            METH_NOARGS, "fill me in"},
+        {"set_num_threads", (PyCFunction)set_num_threads,
+            METH_O, "fill me in"},
+        {"rasterize", (PyCFunction)rasterize,
+            METH_VARARGS | METH_KEYWORDS, "fill me in"},
+        {"toa_phoa_snr", (PyCFunction)sky_map_toa_phoa_snr,
+            METH_VARARGS | METH_KEYWORDS, "fill me in"},
+        {"test", (PyCFunction)test,
+            METH_NOARGS, "fill me in"},
+        {/* terminal element, all NULL */}
+    }
+};
+
+PyMODINIT_FUNC PyInit_core(void); /* Silence -Wmissing-prototypes */
+PyMODINIT_FUNC PyInit_core(void)
+{
+    import_array();
+    import_umath();
+    return PyModuleDef_Init(&moduledef);
 }

@@ -2,7 +2,123 @@
 Changelog
 #########
 
-2.1.3 (unreleased)
+2.5.5 (unreleased)
+==================
+
+- No changes yet.
+
+2.5.4 (2026-06-06)
+==================
+
+- Run tests for Python 3.14.
+
+- Fix support for Numpy 2.5.0, which removed some deprecated APIs.
+
+2.5.3 (2026-01-07)
+==================
+
+- Parallelize more sections of ``bayestar-inject``.
+
+2.5.2 (2025-12-20)
+==================
+
+- Fix a bug in progress_map_vectorized that was introduced in the version
+  2.5.1. The bug caused the function to hang when using multiprocessing.
+
+2.5.1 (2025-12-17)
+==================
+
+- Propagate command-line logging settings to multiprocessing subprocesses.
+
+- In the ``bayestar-inject`` script, fix incorrect setting of the low frequency
+  cutoff for horizon redshift calculation. The low frequency cutoff was
+  incorrectly set to 10 Hz rather than to the value of the ``--f-low`` command
+  line argument. If users passed a value greater than 10 Hz, then the results
+  would have been correct but the script would have taken longer to run than it
+  should have.
+
+2.5.0 (2025-12-12)
+==================
+
+- Include a vendored copy of the ``ptemcee`` package by Will Vousden and
+  update it to work with Numpy 2.x.
+
+2.4.2 (2025-11-25)
+==================
+
+- Fix an API incompatibility with the igwn_ligolw Python package that affected
+  the ``bayestar_inject`` command. Thanks to Ramodgwendé Weizmann Kiendrébéogo!
+
+2.4.1 (2025-09-03)
+==================
+
+- Require numpy >= 2.0.0 and scipy >= 1.10.1.
+
+- Fix centering of WCS axes plots using SkyCoord instances in frames that are
+  different from the WCS axes' frame (for example, supplying a center in ICRS
+  coordinates when the WCS axes are in Galactic coordinates).
+  Fixes `GitHub issue #32`__. Thanks to `@nicholasjannsen`__ for reporting!
+
+  __ https://github.com/lpsinger/ligo.skymap/issues/32
+  __ https://github.com/nicholasjannsen
+
+- Several performance improvements in ``ligo-skymap-from-samples`` that
+  together result in reduction in run time from 15 seconds to 11 seconds on the
+  LIGO-Caltech computing cluster:
+
+   - Rewrite ``ligo.skymap.moc.bayestar_adaptive_grid`` in Numpy so that it can
+     make use of vectorized sampling functions.
+
+   - When evaluating Numpy vectorized functions using Python multiprocessing,
+     pass the entire chunk to the vector function. See
+     ``ligo.skymap.util.progress_map_vectorized``.
+
+   - Refactor final distance columns computation so that it is executed only
+     once, not twice.
+
+2.4.0 (2025-05-22)
+==================
+
+- Migrate dependencies from python-ligo-lw and ligo-segments to igwn-ligolw and
+  igwn-segments.
+
+- Require LALSuite >= 7.26.
+
+- Require Python >= 3.11 in accordance with
+  `SPEC 0 — Minimum Supported Dependencies`__.
+
+  __ https://scientific-python.org/specs/spec-0000/
+
+- Run unit tests for Python 3.11 through 3.13.
+
+- Annotate instruments in ``ligo-skymap-plot`` and ``ligo-skymap-plot-volume``
+  if ``--annotate`` flag is specified and the input FITS file metadata contains
+  the ``INSTRUME`` field.
+
+2.3.0 (2025-04-26)
+==================
+
+- Add to ``ligo-skymap-from-samples`` experimental support for fast 2D sky map
+  density estimation with `FIGARO`__.
+
+  __ https://figaro.readthedocs.io/en/latest/
+
+- Add support to BAYESTAR for SGNL, a new compact binary coalescence search.
+
+2.2.2 (2025-02-08)
+==================
+
+- Retry timing-sensitive unit tests a few times to fix occasional CI/CD
+  failures when building Conda packages.
+
+2.2.1 (2025-02-05)
+==================
+
+- Fix a bug in the last release that caused ``progress_map`` to raise an
+  exception when given the keyword argument ``jobs=None``, for a number of jobs
+  equal to the number of cores.
+
+2.2.0 (2025-01-29)
 ==================
 
 - Display at least three significant figures in the credible area shown in the
@@ -13,11 +129,34 @@ Changelog
   nonzero values are reported when the credible region is smaller than one
   pixel.
 
-- Several improvements in ``ligo-skymap-from-samples``:
+- Some improvements to plot markers:
+
+  - The Earth plot marker is now unfilled by default. It is no longer necessary
+    to specify ``markerfacecolor='none'``.
+
+  - Added markers for the Sun and Moon.
+
+- Several improvements in ``ligo-skymap-from-samples``, including a speedup
+  from about 1 min to 20 s for an input of 10,000 samples on high core count
+  (up to 128 core) x86_64 machines:
+
+  - Parallelize the evaluation of the 2D KDE.
+
+  - Pre-whiten the data before clustering to avoid matrix inverses in an inner
+    loop. This speeds up the clustering by about 2x.
+
+  - Replace our pure Python implementation of the k-means assignment step with
+    the Cython implementation from ``scipy.cluster.vq``.
 
   - Add a progress bar for the HEALPix adaptive refinement step.
 
   - Record the runtime in the output FITS file's header.
+
+  - Reuse the Python mulitprocessing pool to avoid the overhead of spawning
+    new workers for each parallel section.
+
+  - Add chunk size heuristic to reduce overhead of parallel maps using Python
+    mulitprocessing.
 
 2.1.2 (2024-10-22)
 ==================
@@ -122,7 +261,7 @@ Changelog
   inclination posteriors to sky map output.
 
 - Remove ``frameon=False`` in ``ligo-skymap-plot-volume`` so that it respects
-  the (lack of the) ``--transparent`` option. This improves text and label 
+  the (lack of the) ``--transparent`` option. This improves text and label
   readability against dark backgrounds when transparent mode is not on. Thanks
   go to Geoffrey Mo for this contribution.
 
@@ -473,7 +612,7 @@ Changelog
   effective in the related method :meth:`ligo.skymap.distance.marginal_ppf`.
 
   This change also fixes some rare corner cases where
-  :meth:`~ligo.skymap.distance.marginal_ppf` returned silly values becauses it
+  :meth:`~ligo.skymap.distance.marginal_ppf` returned silly values because it
   uses :meth:`~ligo.skymap.distance.conditional_ppf` internally to create its
   own initial guess. One example was the median distance for the binary neutron
   star candidate S191205ah. Before this patch, the result was negative and
@@ -499,7 +638,7 @@ Changelog
 - Increase the range of validity of the solver used in
   :meth:`ligo.skymap.distance.moments_to_parameters` for low-probability pixels
   that are very prior dominated. Sky maps that have many such pixels could have
-  credible volumes repoted as infinity. The incidence of such cases should now
+  credible volumes reported as infinity. The incidence of such cases should now
   be decreased.
 
 - Correct the alignment of Numpy record arrays passed to
@@ -684,7 +823,7 @@ Changelog
 - Change the license for the project as a whole to GPL 3.0 or later (GPLv3+).
   Previously, the source files had been a mix of GPLv2+ and GPLv3+.
 
-- Add ``ligo-skymap-contour-moc`` command line to create a credible region 
+- Add ``ligo-skymap-contour-moc`` command line to create a credible region
   in a MOC (Multi Order Coverage) data structure. The input can be either a
   multiresolution or a flattened HEALPix probability map.
 

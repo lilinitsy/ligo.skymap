@@ -41,7 +41,7 @@ requirements:
 #
 
 sdist:
-  image: python:3.10
+  image: python:3.11
   stage: dist
   script:
     - pip install build
@@ -60,7 +60,7 @@ sdist:
   stage: dist
   script:
     # Build and install LALSuite
-    - PYPREFIX=/opt/python/cp310-cp310
+    - PYPREFIX=/opt/python/cp311-cp311
     - ${PYPREFIX}/bin/pip install build
     - ${PYPREFIX}/bin/python -m build -w
     - auditwheel repair dist/*.whl
@@ -98,7 +98,7 @@ wheel/linux/aarch64:
   stage: dist
   script:
     - . /opt/local/share/macports/setupenv.bash
-    - PYVERS=3.10
+    - PYVERS=3.11
     # Enter virtualenv so that we have a controlled version of Numpy
     - python${PYVERS} -m venv env
     - source env/bin/activate
@@ -151,8 +151,7 @@ wheel/macos/arm64:
       RUN apt-get update && apt-get -y install --no-install-recommends libchealpix-dev libgsl-dev pkg-config && rm -rf /var/lib/apt/lists/*
       RUN pip --no-cache-dir install pytest-cov gcovr\<8 pycobertura flake8 coverage 'pip>=24'
       COPY requirements.txt .
-      # FIXME: temporarily install numpy<2 so that we test Numpy 1.x here and cover newer versions in the dev deps test. Remove when we require numpy>=2.
-      RUN pip --no-cache-dir install numpy\<2 -r requirements.txt && rm -f requirements.txt
+      RUN pip --no-cache-dir install -r requirements.txt && rm -f requirements.txt
       EOF
     - docker build -t $IMAGE_TAG .
     - docker push $IMAGE_TAG
@@ -161,16 +160,16 @@ wheel/macos/arm64:
   tags:
     - executor-docker
 
-deps-aarch64/python3.10:
+# Pin Python patch version due to bug affecting doctests that has been fixed
+# but will not be backported to Python 3.11.
+# See https://github.com/python/cpython/issues/117692#issuecomment-2047800533.
+deps-aarch64/python3.11.8:
   <<: *deps
   tags:
     - aarch64
     # FIXME: Uncomment after the following issue is fixed.
     # https://git.ligo.org/computing/helpdesk/-/issues/5775
     # - executor-docker
-
-deps-x86_64/python3.10:
-  <<: *deps
 
 # Pin Python patch version due to bug affecting doctests that has been fixed
 # but will not be backported to Python 3.11.
@@ -181,12 +180,18 @@ deps-x86_64/python3.11.8:
 deps-x86_64/python3.12:
   <<: *deps
 
+deps-x86_64/python3.13:
+  <<: *deps
+
+deps-x86_64/python3.14:
+  <<: *deps
+
 #
 # Generate documentation.
 #
 
 docs:
-  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.10:$CI_COMMIT_REF_SLUG
+  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.12:$CI_COMMIT_REF_SLUG
   stage: test
   <<: *in-tmpdir
   script:
@@ -195,7 +200,7 @@ docs:
     - make -C docs html
     - mv docs/_build/html ${CI_PROJECT_DIR}/
   needs:
-    - deps-x86_64/python3.10
+    - deps-x86_64/python3.12
     - sdist
   artifacts:
     paths:
@@ -211,27 +216,20 @@ docs:
   stage: test
   script:
     - pip install $(echo ${CI_PROJECT_DIR}/*.whl)[test]
-    - python -c 'import sys; from ligo.skymap import test; sys.exit(test(args="--doctest-plus --doctest-ufunc --mpl --mpl-results-path '${CI_PROJECT_DIR}'/pytest-mpl-results --mpl-generate-summary=html --omp-get-num-threads --durations=10"))'
+    - pytest --pyargs ligo.skymap --doctest-plus --doctest-ufunc --mpl --mpl-results-path ${CI_PROJECT_DIR}/pytest-mpl-results --mpl-generate-summary=html --omp-get-num-threads --durations=10
   artifacts:
     paths:
       - pytest-mpl-results/
     when: always
 
-test/linux/aarch64/python3.10:
+test/linux/aarch64/python3.11.8:
   <<: *test
-  image: $CI_REGISTRY_IMAGE/deps-aarch64/python3.10:$CI_COMMIT_REF_SLUG
+  image: $CI_REGISTRY_IMAGE/deps-aarch64/python3.11.8:$CI_COMMIT_REF_SLUG
   needs:
-    - deps-aarch64/python3.10
+    - deps-aarch64/python3.11.8
     - wheel/linux/aarch64
   tags:
     - aarch64
-
-test/linux/x86_64/python3.10:
-  <<: *test
-  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.10:$CI_COMMIT_REF_SLUG
-  needs:
-    - deps-x86_64/python3.10
-    - wheel/linux/x86_64
 
 test/linux/x86_64/python3.11.8:
   <<: *test
@@ -247,17 +245,32 @@ test/linux/x86_64/python3.12:
     - deps-x86_64/python3.12
     - wheel/linux/x86_64
 
+test/linux/x86_64/python3.13:
+  <<: *test
+  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.13:$CI_COMMIT_REF_SLUG
+  needs:
+    - deps-x86_64/python3.13
+    - wheel/linux/x86_64
+
+test/linux/x86_64/python3.14:
+  <<: *test
+  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.14:$CI_COMMIT_REF_SLUG
+  needs:
+    - deps-x86_64/python3.14
+    - wheel/linux/x86_64
+
 .test/macos: &test-macos
   <<: *in-tmpdir
   stage: test
   script:
     - . /opt/local/share/macports/setupenv.bash
-    - PYVERS=3.10
+    - PYVERS=3.12
     # Enter virtualenv so that we have a controlled version of Numpy
     - python${PYVERS} -m venv env
     - source env/bin/activate
+    - pip install 'numba<=0.62.1'  # FIXME: Numba has stopped distributing macOS x86_64 wheels. Remove once ligo.skymap drops builds for macOS x86_64.
     - pip install $(echo ${CI_PROJECT_DIR}/*.whl)[test]
-    - python -c 'import sys; from ligo.skymap import test; sys.exit(test(args="--doctest-plus --doctest-ufunc --mpl --mpl-results-path '${CI_PROJECT_DIR}'/pytest-mpl-results --mpl-generate-summary=html --omp-get-num-threads --durations=10"))'
+    - pytest --pyargs ligo.skymap --doctest-plus --doctest-ufunc --mpl --mpl-results-path ${CI_PROJECT_DIR}/pytest-mpl-results --mpl-generate-summary=html --omp-get-num-threads --durations=10
   artifacts:
     paths:
       - pytest-mpl-results/
@@ -291,8 +304,8 @@ test/dev-deps:
       'matplotlib>=0.0.0.dev0'
       'lalsuite>=0.0.0.dev0'
       git+https://github.com/astropy/astropy
-      git+https://git.ligo.org/kipp.cannon/python-ligo-lw
-    - python -c 'import sys; from ligo.skymap import test; sys.exit(test(args="--doctest-plus --doctest-ufunc --mpl --mpl-results-path '${CI_PROJECT_DIR}'/pytest-mpl-results --mpl-generate-summary=html --omp-get-num-threads --durations=10"))'
+      git+https://git.ligo.org/computing/software/igwn-ligolw
+    - pytest --pyargs ligo.skymap --doctest-plus --doctest-ufunc --mpl --mpl-results-path ${CI_PROJECT_DIR}/pytest-mpl-results --mpl-generate-summary=html --omp-get-num-threads --durations=10
   needs:
     - wheel/linux/x86_64
   allow_failure: true
@@ -313,7 +326,7 @@ test/dev-deps:
 
 test/coverage:
   stage: test
-  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.10:$CI_COMMIT_REF_SLUG
+  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.11.8:$CI_COMMIT_REF_SLUG
   variables:
     # -UNDEBUG
     #     enable C assertions
@@ -343,16 +356,16 @@ test/coverage:
     # Merge coverage reports.
     - ${CI_PROJECT_DIR}/.gitlab/combine-coverage.py py-coverage.xml c-coverage.xml coverage.xml
     # Write human-readable report.
-    - pycobertura show coverage.xml -f html -o coverage.html
+    - pycobertura show coverage.xml -f html -o index.html
     - pycobertura show coverage.xml
-    - cp coverage.html coverage.xml ${CI_PROJECT_DIR}
+    - cp index.html coverage.xml ${CI_PROJECT_DIR}
     - if [[ "$FAILED" ]]; then false; fi
   needs:
-    - deps-x86_64/python3.10
+    - deps-x86_64/python3.11.8
     - sdist
   artifacts:
     paths:
-      - coverage.html
+      - index.html
       - pytest-mpl-results/
     reports:
       coverage_report:
@@ -361,30 +374,32 @@ test/coverage:
       junit: junit.xml
     expire_in: 1 day
     when: always
-  timeout: 2 hours
+  timeout: 4 hours
 
 #
-# Run flake8 linter to enforce code style.
+# Run all pre-commit hooks to enforce code style.
 #
 
 lint:
-  extends:
-    - .python:flake8
-  image: $CI_REGISTRY_IMAGE/deps-x86_64/python3.10:$CI_COMMIT_REF_SLUG
+  image: python
   stage: test
-  needs:
-    - deps-x86_64/python3.10
+  needs: []
+  script:
+    - pip install pre-commit
+    - pre-commit run --all-files
 
 #
 # Acceptance tests.
 #
 
-tests/review:
+test/review:
   stage: test
   image: containers.ligo.org/emfollow/ssh-kerberos
   when: manual
   needs:
     - wheel/linux/x86_64
+  tags:
+    - cit
   variables:
     GIT_STRATEGY: none
     REMOTE_HOST: skymap.testing@ldas-grid.ligo.caltech.edu
@@ -398,7 +413,7 @@ tests/review:
     - |
       ssh -T $REMOTE_HOST "bash -e" <<EOF
       cd public_html/$CI_JOB_ID
-      /cvmfs/oasis.opensciencegrid.org/ligo/sw/conda/bin/python -m venv env
+      python3.11 -m venv env
       source env/bin/activate
       pip install *.whl
       pip install -r requirements.txt
@@ -410,6 +425,7 @@ tests/review:
       ssh -T $REMOTE_HOST "bash -e" <<EOF
       cd public_html/$CI_JOB_ID
       source env/bin/activate
+      export LAL_DATA_PATH=/home/lalsimulation_data  # FIXME: workaround for https://git.ligo.org/computing/helpdesk/-/issues/7001
       condor_submit_dag -include_env LAL_DATA_PATH -append accounting_group_user=leo.singer -batch-name pipeline/$CI_JOB_ID htcondor/acceptance-tests.dag
       tail --follow=descriptor --retry htcondor/acceptance-tests.dag.dagman.out &
       condor_wait htcondor/acceptance-tests.dag.dagman.log
@@ -436,12 +452,14 @@ tests/review:
 # Run benchmark.
 #
 
-tests/benchmark:
+test/benchmark:
   stage: test
   image: containers.ligo.org/emfollow/ssh-kerberos
   when: manual
   needs:
     - wheel/linux/x86_64
+  tags:
+    - cit
   variables:
     GIT_STRATEGY: none
     REMOTE_HOST: skymap.testing@ldas-grid.ligo.caltech.edu
@@ -458,7 +476,10 @@ tests/benchmark:
       ssh -T $REMOTE_HOST "bash -e" <<EOF
       cd public_html/$CI_JOB_ID
       CI_SERVER_PROTOCOL="$CI_SERVER_PROTOCOL" CI_JOB_TOKEN="$CI_JOB_TOKEN" \
+      export LAL_DATA_PATH=/home/lalsimulation_data  # FIXME: workaround for https://git.ligo.org/computing/helpdesk/-/issues/7001
       CI_SERVER_FQDN="$CI_SERVER_FQDN" condor_run \
+        -a MY.flock_local=True \
+        -a MY.DESIRED_Sites=none \
         -a request_disk=4G \
         -a request_memory=8G \
         -a request_cpus=48 \
@@ -480,23 +501,52 @@ tests/benchmark:
       - perf.svg
     expose_as: benchmark
     expire_in: 1 week
+  timeout: 4 hours
 
 #
 # Gather coverage reports and docs for GitLab pages and build badges.
 #
 
-pages:
+pages/docs:
   stage: deploy
-  script:
-    - mv html public
-    - mv coverage.html public/coverage.html
+  script: mv html public
   needs:
     - docs
+  pages: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+pages/coverage:
+  stage: deploy
+  script:
+    - mkdir -p public
+    - mv index.html pytest-mpl-results public/
+  needs:
     - test/coverage
-  artifacts:
-    paths:
-      - public
-    expire_in: 30 days
+  pages:
+    path_prefix: coverage
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+pages/review:
+  stage: deploy
+  script: mv site public
+  needs:
+    - test/review
+  pages:
+    path_prefix: review
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+
+pages/benchmark:
+  stage: deploy
+  script:
+    - mkdir -p public
+    - mv benchmark.svg roofline.html perf.svg public
+  needs:
+    - test/benchmark
+  pages:
+    path_prefix: benchmark
   rules:
     - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
 

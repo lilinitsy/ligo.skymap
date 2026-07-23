@@ -1,4 +1,4 @@
-# Copyright (C) 2017-2022  Leo Singer
+# Copyright (C) 2017-2025  Leo Singer
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,20 +15,20 @@
 #
 import logging
 
+from igwn_ligolw import ligolw
 from ligo.gracedb import rest
-from ligo.lw import ligolw
 
 from .base import EventSource
 from .ligolw import LigoLWEventSource, _read_xml
 
-__all__ = ('GraceDBEventSource',)
+__all__ = ("GraceDBEventSource",)
 
-log = logging.getLogger('BAYESTAR')
+log = logging.getLogger("BAYESTAR")
 
 
 def _has_psds(xmldoc):
     for elem in xmldoc.getElementsByTagName(ligolw.LIGO_LW.tagName):
-        if elem.hasAttribute('Name') and elem.Name == 'REAL8FrequencySeries':
+        if elem.hasAttribute("Name") and elem.Name == "REAL8FrequencySeries":
             return True
     return False
 
@@ -59,15 +59,18 @@ class GraceDBEventSource(EventSource):
         return iter(self._graceids)
 
     def __getitem__(self, graceid):
-        coinc_file, _ = _read_xml(self._client.files(graceid, 'coinc.xml'))
+        coinc_file, _ = _read_xml(self._client.files(graceid, "coinc.xml"))
         if _has_psds(coinc_file):
             psd_file = coinc_file
         else:
-            log.warning('The coinc.xml should contain a PSD, but it does not. '
-                        'Attempting to download psd.xml.gz.')
-            psd_file = self._client.files(graceid, 'psd.xml.gz')
-        event, = LigoLWEventSource(
-            coinc_file, psd_file=psd_file, coinc_def=None).values()
+            log.warning(
+                "The coinc.xml should contain a PSD, but it does not. "
+                "Attempting to download psd.xml.gz."
+            )
+            psd_file = self._client.files(graceid, "psd.xml.gz")
+        (event,) = LigoLWEventSource(
+            coinc_file, psd_file=psd_file, coinc_def=None
+        ).values()
         return event
 
     def __len__(self):

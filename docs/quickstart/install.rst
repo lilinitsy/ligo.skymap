@@ -3,7 +3,7 @@
 Installation
 ============
 
-.. important:: The `ligo.skymap` package requires `Python`_ 3.10 or later.
+.. important:: The `ligo.skymap` package requires `Python`_ 3.11 or later.
     See our :ref:`python-version-policy` for more details.
 
 On the Linux or macOS operating systems and on x86_64 or aarch64/arm64 systems,
@@ -70,28 +70,32 @@ You are now ready to get started using `ligo.skymap`.
           *  `astropy-healpix <https://astropy-healpix.readthedocs.io>`_ ≥ 0.3
           *  `Healpy <http://healpy.readthedocs.io>`_
           *  `h5py <https://www.h5py.org>`_
-          *  `LALSuite <https://pypi.python.org/pypi/lalsuite>`_ ≥ 6.53, ≠ 7.2
+          *  `igwn-ligolw <https://pypi.org/project/igwn-ligolw/>`_
+          *  `igwn-segments <https://pypi.org/project/igwn-segments/>`_
+          *  `LALSuite <https://pypi.python.org/pypi/lalsuite>`_ ≥ 7.26
           *  `ligo-gracedb <https://pypi.org/project/ligo-gracedb/>`_ ≥ 2.0.1
-          *  `ligo-segments <https://pypi.org/project/ligo-segments/>`_ ≥ 1.2.0
           *  `Matplotlib <https://matplotlib.org>`_ ≥ 3.9.1
           *  `NetworkX <https://networkx.github.io>`_
-          *  `Numpy <http://www.numpy.org>`_ ≥ 1.23.0
+          *  `Numpy <http://www.numpy.org>`_ ≥ 2.0.0
           *  `Pillow <http://pillow.readthedocs.io>`_ ≥ 2.5.0
-          *  `ptemcee <https://github.com/willvousden/ptemcee>`_
-          *  `python-ligo-lw <https://pypi.org/project/python-ligo-lw/>`_ ≥ 1.8.0
           *  `Reproject <https://reproject.readthedocs.io>`_ ≥ 0.3.2
-          *  `Scipy <https://www.scipy.org>`_ ≥ 0.14, ≠ 1.10.0
+          *  `Scipy <https://www.scipy.org>`_ ≥ 1.10.1
           *  `Shapely <https://shapely.readthedocs.io/>`_ ≥ 2.0.0
           *  `tqdm <https://tqdm.github.io>`_ ≥ 4.27.0
           *  `pytz <http://pytz.sourceforge.net>`_
 
           The following packages are optional for specific features.
 
+          For using DPGMM density estimation:
+          *  `FIGARO <https://figaro.readthedocs.io>` ≥ 1.7.8
+
           For running the test suite:
 
           *  `astroquery <https://astroquery.readthedocs.io/>`_
           *  `pytest-astropy <https://github.com/astropy/pytest-astropy>`_
+          *  `pytest-benchmark <https://pytest-benchmark.readthedocs.io/en/latest/>`_
           *  `pytest-mpl <https://pytest-mpl.readthedocs.io/>`_
+          *  `pytest-rerunfailures <https://pytest-rerunfailures.readthedocs.io/>`_
 
           For building the documentation:
 
@@ -106,25 +110,24 @@ Optional LALSimulation Data
 
 The following instructions are only relevant if you are installing ligo.skymap
 for the purpose of generating localizations with BAYESTAR (e.g., for analysis
-of LIGO/Virgo/KAGRA data or for simulations) and you are **not** using a LIGO
-Data Grid cluster.
+of LIGO/Virgo/KAGRA data or for simulations).
 
 Some gravitational waveform approximants in LALSuite (notably, reduced order
-models) rely on external data files. These data files are part of
-`lalsuite-extra`_, which must be installed separately. To install these data
-files, run the following commands::
+models) rely on `LALSuite extra waveform files`_ that you must download and
+install separately. You can download the entire collection of waveform files by
+following the `instructions in LALSuite's README file`_, or you can run the
+following command to download just the one file needed by ligo.skymap::
 
-    $ curl -OL https://software.igwn.org/lscsoft/source/lalsuite-extra-1.3.0.tar.gz
-    $ tar xf lalsuite-extra-1.3.0.tar.gz
-    $ cd lalsuite-extra-1.3.0
-    $ ./configure --prefix=$HOME/.local
-    $ make install
+    $ mkdir -p ~/lalsuite-waveform-data
+    $ cd ~/lalsuite-waveform-data
+    $ curl -OL https://zenodo.org/records/14999310/files/SEOBNRv4ROM_v3.0.hdf5
 
 Then, add the following line to your shell profile script (``~/.profile``,
 ``~/.bashrc``, or similar)::
 
-    export LAL_DATA_PATH=$HOME/.local/share/lalsimulation
+    export LAL_DATA_PATH=$HOME/lalsuite-waveform-data
 
 Then log out and log back in.
 
-.. _`lalsuite-extra`: https://git.ligo.org/lscsoft/lalsuite-extra
+.. _`LALSuite extra waveform files`: https://git.ligo.org/lscsoft/lalsuite#lalsuite-extra-waveform-files
+.. _`instructions in LALSuite's README file`: `LALSuite extra waveform files`_
