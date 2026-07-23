@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -O3 -Wall -Wextra -march=native -std=c11
+CFLAGS = -O3 -Wall -Wextra -march=native -std=c11 -ffp-contract=fast
 LDFLAGS = -lm 
 OBJ = cubic_interp.o cubic_interp_optimizations_tests.o
 DEPS = cubic_interp.h branch_prediction.h vmath.h
