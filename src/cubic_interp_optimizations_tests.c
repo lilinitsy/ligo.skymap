@@ -46,9 +46,9 @@ int main()
   double accum_result = 0.0; // dummy variable so the compiler doesn't optimize away the bicubic_interp_eval loop
   size_t num_iterations = 0;
   gettimeofday(&start_time, NULL);
-  for(double s = 0; s <= 100; s += 0.1)
+  for(double s = 0; s <= 10000; s += 0.1)
   {
-    for(double t = 0; t <= 100; t += 0.1)
+    for(double t = 0; t <= 10000; t += 0.1)
     {
       const double result = bicubic_interp_eval(interp, s, t);
       accum_result += result;

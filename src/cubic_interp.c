@@ -208,5 +208,8 @@ double bicubic_interp_eval(const bicubic_interp *interp, double s, double t)
 
     const v4df *a = interp->a[(int) (ix[0] * interp->xlength[0] + ix[1])];
     v4df b = VCUBIC(a, x[1]);
-    return VCUBIC(b, x[0]);
+
+    const double xs = x[0];
+    const double xs2 = xs * xs;
+    return (b[2] * xs + b[3]) + xs2 * (b[0] * xs + b[1]);
 }
